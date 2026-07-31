@@ -1,0 +1,32 @@
+# === API ===
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9        # necesario para UploadFile/Form
+
+# === Base de datos ===
+SQLAlchemy>=2.0.30
+psycopg[binary]>=3.1.19
+pydantic-settings>=2.3.0
+email-validator>=2.1.1         # requerido por pydantic.EmailStr
+
+# === Seguridad ===
+bcrypt>=4.1.2
+PyJWT>=2.8.0
+
+# === Modelos de vision (PersonDetector / LightingDetector / lightingAnalyzer) ===
+# Reutiliza el entorno de inferencia ya definido en la raiz del proyecto:
+# torch, torchvision, ultralytics, opencv-python, PyYAML, matplotlib, etc.
+-r ../requirements.txt
+
+# === Modulo de prediccion energetica (api/energy/) ===
+# El modelo ya entrenado es un LGBMRegressor (joblib); scikit-learn/pandas/
+# numpy/joblib ya llegan transitivamente por requirements.txt de arriba.
+lightgbm>=4.3
+
+# === Asistente de voz (api/assistant/) ===
+# Transcripcion (Whisper), respuesta (Chat) y voz (TTS), todo via API de OpenAI.
+openai>=1.40
+
+# === Reportes del asistente (api/assistant/pdf_renderer.py) ===
+# Puro Python, sin dependencias de sistema nuevas (a diferencia de WeasyPrint).
+reportlab>=4.2

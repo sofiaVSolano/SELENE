@@ -1,0 +1,30 @@
+# === Nucleo Deep Learning ===
+# torch/torchvision con soporte CUDA. Si se reinstala en otra maquina, usar el
+# indice oficial de PyTorch acorde a la version de CUDA del driver instalado, p.ej.:
+#   pip install torch==2.12.1 torchvision==0.27.1 --index-url https://download.pytorch.org/whl/cu130
+torch==2.12.1
+torchvision==0.27.1
+
+# === Detector de personas (RT-DETR) ===
+# Implementacion oficial en PyTorch de RT-DETR (ver detectors/person_detector.py).
+ultralytics==8.4.84
+
+# === Datos, imagenes y anotaciones (detectores + lightingAnalyzer) ===
+opencv-python>=4.9.0
+Pillow>=10.0.0
+numpy>=1.26.0
+
+# === Configuracion ===
+PyYAML>=6.0.1
+
+# === Metricas, resultados y hojas de calculo ===
+pandas>=2.2.0
+openpyxl>=3.1.2
+scikit-learn>=1.4.0
+
+# === Visualizacion (graficas de lightingAnalyzer) ===
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# === Utilidades ===
+tqdm>=4.66.0

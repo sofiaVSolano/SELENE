@@ -1,0 +1,42 @@
+# =============================================================================
+# lighting_weights.yaml
+# -----------------------------------------------------------------------------
+# Pesos del indicador de iluminacion (lightingAnalyzer/indicators.py).
+#
+# Natural Score y Artificial Score son sumas ponderadas de componentes
+# normalizados en [0, 1]. Cada bloque ("natural" / "artificial") DEBE sumar
+# 1.0; el modulo valida esto al cargar el archivo y lanza un error si no se
+# cumple (ver utils.load_yaml_config / indicators.IndicatorCalculator).
+#
+# Modificar estos valores no requiere tocar codigo: indicators.py los lee en
+# tiempo de ejecucion.
+#
+# Componentes de "natural" (evidencia de iluminacion natural / luz de dia):
+#   windows      -> cuantas ventanas hay (saturado, ver lighting_analysis.yaml)
+#   area         -> cuanta area relativa de la imagen ocupan las ventanas
+#   brightness   -> brillo promedio (canal V) dentro de las ventanas
+#   contrast     -> contraste Michelson promedio dentro de las ventanas
+#   distribution -> que tan repartidas espacialmente estan las ventanas
+#                   (tercios horizontales de la imagen cubiertos)
+#
+# Componentes de "artificial" (evidencia de iluminacion artificial):
+#   luminaires -> cuantas luminarias hay (saturado)
+#   area       -> cuanta area relativa ocupan las luminarias
+#   brightness -> brillo promedio (canal V) dentro de las luminarias
+#   contrast   -> contraste Michelson promedio dentro de las luminarias
+#   hotspot    -> porcentaje de pixeles "hotspot" (extremadamente brillantes)
+# =============================================================================
+
+natural:
+  windows: 0.20
+  area: 0.20
+  brightness: 0.30
+  contrast: 0.15
+  distribution: 0.15
+
+artificial:
+  luminaires: 0.20
+  area: 0.20
+  brightness: 0.25
+  contrast: 0.10
+  hotspot: 0.25

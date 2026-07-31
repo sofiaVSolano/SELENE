@@ -1,0 +1,29 @@
+# Entornos virtuales
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Pesos entrenados (pesados; se documentan en README como obtenerlos/copiarlos)
+weights/**/*.pth
+weights/**/*.pt
+
+# Salidas en runtime
+reports/lighting_analysis/*
+!reports/lighting_analysis/.gitkeep
+
+# Editor / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Frontend (SELENE)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Backend (SELENE)
+backend/.env

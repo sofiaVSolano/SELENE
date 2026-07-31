@@ -1,0 +1,26 @@
+# =============================================================================
+# lighting_thresholds.yaml
+# -----------------------------------------------------------------------------
+# Umbrales de clasificacion final de la escena (lightingAnalyzer/classifier.py).
+#
+# Reglas (evaluadas en este orden, la primera que se cumple gana):
+#
+#   1. "Natural"   si natural_percentage   > natural.min_pct
+#                  Y artificial_percentage < natural.max_opposite_pct
+#
+#   2. "Artificial" si artificial_percentage > artificial.min_pct
+#                   Y natural_percentage     < artificial.max_opposite_pct
+#
+#   3. "Mixta"     en cualquier otro caso (incluye el empate 50/50 y toda
+#                  combinacion que no dispare 1 ni 2 de forma inequivoca).
+#
+# Todos los valores estan en porcentaje (0-100).
+# =============================================================================
+
+natural:
+  min_pct: 70.0
+  max_opposite_pct: 30.0
+
+artificial:
+  min_pct: 70.0
+  max_opposite_pct: 30.0

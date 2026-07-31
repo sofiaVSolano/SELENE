@@ -1,0 +1,77 @@
+# =============================================================================
+# Configuracion del modulo de prediccion energetica (backend/api/energy/)
+# =============================================================================
+# El modelo LightGBM de ProyectoPrediccionEnergetica fue entrenado con datos
+# HORARIOS agregados por sede completa de la UPTC (ver
+# ConsumoEnergeticoComp/ProyectoPrediccionEnergetica/recursos/CODEBOOK_UPTC.md).
+# No conoce luminarias individuales, ventanas ni brillo: sus variables de
+# entrada son ocupacion_pct, tiempo, tipo de espacio (mezcla porcentual
+# comedor/salon/laboratorio/auditorio/oficina) y metadata estatica de la sede
+# (area_m2, num_estudiantes, num_empleados, num_edificios, altitud, etc.).
+#
+# Como el sistema de vision monitorea UN espacio puntual (un salon, una
+# oficina...) y no una sede completa, cada "perfil" de abajo describe ESE
+# espacio como si fuera una sede sintetica de tamano reducido (area_m2 chico,
+# num_estudiantes ~ aforo del espacio, num_edificios=1). Es una aproximacion
+# razonable para reutilizar el modelo ya entrenado sin reentrenarlo, pero es
+# una extrapolacion fuera de la escala de entrenamiento (miles de m2 -> unas
+# decenas): ajuste estos valores por instalacion real para mejorar la
+# precision, y no espere que consumo_esperado_kwh sea comparable a un
+# medidor fisico sin calibrar antes contra datos reales del espacio.
+#
+# `ocupacion_pct` y `pct_<sector>` NO se configuran aqui: se calculan en
+# tiempo real a partir de las variables que entrega la vision por computador
+# (ver backend/api/energy/feature_mapping.py).
+
+# --- Perfiles de contexto ---------------------------------------------------
+# Un perfil = todo lo que el modelo necesita y la camara NO puede ver. Elegir
+# el perfil por instalacion con el campo `perfil_contexto` del request (ver
+# backend/api/energy/schemas.py::EscenarioVision). "default" se usa si no se
+# especifica ninguno.
+perfiles_contexto:
+  default:
+    sede: "Tunja"
+    ciudad: "Tunja"
+    nombre_completo: "Sede Central Tunja"
+    periodo_academico: "semestre_1"
+    area_m2: 45.0
+    num_estudiantes: 40          # aforo tipico del espacio monitoreado (no de toda la sede)
+    num_empleados: 1
+    num_edificios: 1
+    tiene_residencias: false
+    tiene_laboratorios_pesados: false
+    altitud_msnm: 2820.0
+    temp_promedio_c: 13.5
+    agua_litros: 0.0
+    temperatura_exterior_c: 14.0
+    es_semana_parciales: false
+    es_semana_finales: false
+    capacidad_personas: 40       # aforo maximo, usado para derivar ocupacion_pct desde personas_detectadas
+
+# --- Mapeo tipo de espacio (vision) -> sector del modelo --------------------
+# `tipo_espacio` es un campo nuevo que debe entregar el pipeline de vision
+# (no existe todavia en detectors/ ni lightingAnalyzer/); se asume uno de
+# estos valores. Si no matchea ninguno, se reparte proporcionalmente entre
+# salones/oficinas (ver DEFAULT_SPACE_SPLIT en feature_mapping.py).
+mapeo_tipo_espacio:
+  comedor: pct_comedores
+  salon: pct_salones
+  laboratorio: pct_laboratorios
+  auditorio: pct_auditorios
+  oficina: pct_oficinas
+
+# --- Simulacion / recomendaciones -------------------------------------------
+potencia_promedio_luminaria_w: 36.0   # fallback si no se conoce la potencia real (ver luminarias.potencia_w en BD)
+horas_tramo_captura: 1.0              # a cuantas horas equivale un frame/snapshot analizado (granularidad horaria del dataset de entrenamiento)
+fraccion_luminarias_lejos_ventanas: 0.4  # fraccion de luminarias que se asumen "lejos de ventanas" (se mantienen encendidas) en esa simulacion
+fraccion_encendido_mixta: 0.5            # fraccion de luminarias que se mantienen encendidas cuando la iluminacion es mixta
+
+umbral_natural_suficiente: 60.0   # % de luz natural a partir del cual se recomienda apagar luminarias cercanas a ventanas
+umbral_natural_insuficiente: 30.0 # % de luz natural por debajo del cual se recomienda mantener solo la iluminacion necesaria
+
+# --- Indicadores -------------------------------------------------------------
+niveles_ocupacion:  # umbrales (%) para categorizar nivel_ocupacion
+  vacio: 0.0
+  bajo: 25.0
+  medio: 60.0
+  alto: 85.0

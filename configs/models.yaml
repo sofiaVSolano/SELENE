@@ -1,0 +1,43 @@
+# =============================================================================
+# Configuracion de inferencia: fusion iluminacion (FasterRCNN+ADE20K) + personas (RT-DETR+COCO)
+# =============================================================================
+# Todo lo que de otro modo estaria hardcodeado en el codigo (rutas de pesos,
+# umbrales de confianza, intervalo de throttling, fuente de video) vive aqui.
+#
+# El detector de iluminacion es fasterrcnn_resnet50_fpn_v2 (torchvision, dos
+# etapas) y el de personas es RT-DETR (Ultralytics, transformer de una sola
+# pasada sin NMS). Ambos son pesados en comparacion con un YOLO convencional,
+# por lo que los DOS se re-ejecutan cada N frames via throttling/async en
+# tiempo real (ver app/throttled_detector.py), no solo el de iluminacion.
+
+device: "auto"        # auto | cuda | cpu. "auto" detecta CUDA y cae a CPU con aviso si no hay GPU.
+
+# --- Detector de iluminacion (Window / Luminaire) ---------------------------
+# Modelo: fasterrcnn_resnet50_fpn_v2 (torchvision), entrenado sobre
+# ADE20K_WindowLuminaire (ver ../ModeloDeteccionLamp). Checkpoint de entrega:
+# dict con state_dict + class_names + img_size (ver detectors/lighting_detector.py).
+lighting_detector:
+  weights_path: "weights/lighting/FasterRCNN_ADE20KOnly_best.pth"
+  score_threshold: 0.5        # igual al SCORE_THRESHOLD del notebook de entrenamiento
+  interval_frames: 15         # en tiempo real: re-ejecutar cada N frames (1 = cada frame, sin throttling)
+  async_execution: true       # ejecutar en un hilo aparte para no bloquear el loop de video
+
+# --- Detector de personas ----------------------------------------------------
+# Modelo: RT-DETR (Ultralytics, variante "l"), entrenado sobre COCO 2017
+# (clase unica "person"), ver ../ModelosDeteccionComp/Proyecto_RTDETR_COCO.
+# Checkpoint de entrega: checkpoint nativo de Ultralytics (ver
+# detectors/person_detector.py).
+person_detector:
+  weights_path: "weights/person/RTDETR_COCO.pt"
+  conf_threshold: 0.5          # igual al prediction.conf_threshold del proyecto de origen (0.25 por defecto, se sube a 0.5 para consistencia con lighting_detector)
+  interval_frames: 5           # RT-DETR (~33M params, 108 GFLOPs a 640px) sigue siendo pesado, no corre cada frame
+  async_execution: true        # ejecutar en un hilo aparte para no bloquear el loop de video
+
+# --- Video / captura en tiempo real -------------------------------------------
+video:
+  source: 0                   # indice de camara (0 = webcam por defecto) o ruta a archivo de video
+  window_name: "Deteccion en tiempo real - Iluminacion y Personas"
+
+# --- Reportes ------------------------------------------------------------------
+reports:
+  output_dir: "reports/lighting_analysis"   # coincide con el default de lightingAnalyzer

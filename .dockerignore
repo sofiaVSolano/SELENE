@@ -1,0 +1,22 @@
+# Usado por el build del backend (context = raiz del repo, ver backend/Dockerfile).
+# OJO: a diferencia de .gitignore, NO excluye weights/*.pth ni *.pt: el
+# contenedor los necesita para poder correr inferencia real.
+
+.git
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+frontend/node_modules/
+frontend/dist/
+backend/.venv/
+
+test_media/
+reports/lighting_analysis/*
+!reports/lighting_analysis/.gitkeep
+
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

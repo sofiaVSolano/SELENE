@@ -1,0 +1,79 @@
+# Levanta TODO el proyecto SELENE: Postgres, backend (FastAPI + modelos de
+# vision) y frontend (Vite dev server). Ver README.md, "Levantar todo con
+# Docker" para el paso a paso.
+#
+#   docker compose up --build
+#
+# Primer build: tarda varios minutos (instala torch/torchvision/ultralytics
+# dentro de la imagen del backend). Builds posteriores usan la cache de capas.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: selene
+      POSTGRES_PASSWORD: selene
+      POSTGRES_DB: selene_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - selene_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U selene -d selene_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  db-init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://selene:selene@db:5432/selene_db
+    command: ["python", "scripts/init_db.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    environment:
+      # Sobrescribe lo que diga backend/.env: dentro de la red de Docker la
+      # base de datos se llama "db", no "localhost", y ENERGY_MODEL_DIR de
+      # backend/.env es una ruta de Windows (fuera del contenedor) que no
+      # existe aqui dentro -- se remapea al punto de montaje de abajo.
+      DATABASE_URL: postgresql+psycopg://selene:selene@db:5432/selene_db
+      CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+      ENERGY_MODEL_DIR: /energy_model
+    volumes:
+      - C:\Users\sofia\OneDrive\ConsumoEnergeticoComp\ProyectoPrediccionEnergetica:/energy_model:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  selene_pg_data:
+  frontend_node_modules:

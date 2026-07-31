@@ -1,0 +1,244 @@
+/* ============================================================
+   SELENE · Sistema de diseño "Papel y Luz"
+   Una sola fuente de luz gobierna toda la interfaz.
+   Cada sombra, halo y temperatura de color se deriva de ella.
+   ============================================================ */
+
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* --- Superficies: papel, no "cards" --- */
+    --paper: #fdfcfa;
+    --paper-2: #f7f4ef;
+    --paper-3: #f1ece4;
+    --linen: #e8e2d8;
+    --wood: #d6bf9e;
+    --wood-2: #c2a883;
+
+    /* --- Tinta: nunca negro puro --- */
+    --ink: #191512;
+    --ink-2: #6b6257;
+    --ink-3: #9c948a;
+    --ink-4: #c3bcb2;
+
+    /* --- Luz: el único "color" del sistema --- */
+    --amber: #ffb020;
+    --ember: #ff7a18;
+    --sun: #ffd98a;
+    --leaf: #3e9b6b;
+    --clay: #d8503c;
+
+    /* --- MOTOR DE LUZ (lo escribe LightProvider en runtime) --- */
+    --light-x: 0.5; /* 0..1 posición horizontal de la fuente */
+    --light-y: 0.12; /* 0..1 posición vertical */
+    --light-i: 1; /* 0..1 intensidad */
+    --light-k: 3200; /* kelvin medido */
+    --light-rgb: 255 214 170; /* color derivado del kelvin */
+
+    /* Vector sombra: todo el UI proyecta desde la MISMA fuente */
+    --sx: calc((0.5 - var(--light-x)) * 2);
+    --sy: calc((0.5 - var(--light-y)) * 2);
+    --sa: calc(0.1 - var(--light-i) * 0.035); /* alpha de sombra */
+
+    --shadow-raise: calc(var(--sx) * 3px) calc(var(--sy) * 3px + 3px) 8px -3px
+        rgb(41 32 22 / calc(var(--sa) * 1.1)),
+      calc(var(--sx) * 1px) calc(var(--sy) * 1px + 1px) 2px -1px rgb(41 32 22 / calc(var(--sa) * 0.8));
+    --shadow-float: calc(var(--sx) * 10px) calc(var(--sy) * 10px + 12px) 34px -10px
+        rgb(41 32 22 / calc(var(--sa) * 1.5)),
+      calc(var(--sx) * 3px) calc(var(--sy) * 3px + 3px) 8px -4px rgb(41 32 22 / calc(var(--sa) * 1));
+    --shadow-press: inset calc(var(--sx) * 2px) calc(var(--sy) * 2px + 2px) 5px
+      rgb(41 32 22 / calc(var(--sa) * 1.2));
+
+    /* --- Curvas: solo dos --- */
+    --ease-light: cubic-bezier(0.22, 1, 0.36, 1); /* la luz: sube rápido, muere lento */
+    --ease-object: cubic-bezier(0.34, 1.36, 0.64, 1); /* los objetos: peso y rebote */
+
+    --t-micro: 120ms;
+    --t-ui: 240ms;
+    --t-bloom: 700ms;
+    --t-scene: 1400ms;
+
+    --r-sm: 8px;
+    --r-md: 14px;
+    --r-lg: 22px;
+    --r-xl: 34px;
+
+    color-scheme: light;
+  }
+
+  * {
+    border-color: var(--linen);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    overflow-x: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.006em;
+  }
+
+  /* La luz ambiente baña TODA la app desde la fuente actual */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -20vmax;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+      60vmax 60vmax at calc(var(--light-x) * 100%) calc(var(--light-y) * 100%),
+      rgb(var(--light-rgb) / calc(var(--light-i) * 0.5)) 0%,
+      rgb(var(--light-rgb) / calc(var(--light-i) * 0.16)) 35%,
+      transparent 72%
+    );
+    transition: background var(--t-scene) var(--ease-light);
+  }
+
+  /* Grano de papel: sutil, evita el look "plano de plantilla" */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E");
+  }
+
+  ::selection {
+    background: rgb(255 176 32 / 0.28);
+    color: var(--ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--ink-4);
+    border: 3px solid var(--paper);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--amber);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px rgb(255 176 32 / 0.55),
+      0 0 22px rgb(255 176 32 / 0.35);
+    border-radius: var(--r-sm);
+  }
+
+  h1,
+  h2,
+  h3,
+  .serif {
+    font-family: "Instrument Serif", ui-serif, Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    line-height: 1.02;
+  }
+
+  .mono {
+    font-family: "Geist Mono Variable", ui-monospace, monospace;
+    font-feature-settings: "tnum" 1, "zero" 1;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Papel elevado. La sombra viene de la fuente de luz global. */
+  .surface {
+    position: relative;
+    background: linear-gradient(
+      calc(var(--light-x) * 180deg + 90deg),
+      var(--paper) 0%,
+      var(--paper-2) 100%
+    );
+    border: 1px solid var(--linen);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-raise);
+    transition: box-shadow var(--t-ui) var(--ease-light),
+      transform var(--t-ui) var(--ease-light), border-color var(--t-ui) linear;
+  }
+
+  /* El specular sigue al puntero (--mx/--my los escribe useSpecular) */
+  .specular::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      22rem 22rem at var(--mx, 50%) var(--my, 50%),
+      rgb(var(--light-rgb) / 0.5) 0%,
+      transparent 62%
+    );
+    transition: opacity var(--t-bloom) var(--ease-light);
+  }
+  .specular:hover::before {
+    opacity: 1;
+  }
+  .specular:hover {
+    box-shadow: var(--shadow-float);
+    transform: translateY(-1px);
+  }
+
+  /* Halo: la luz que emite un elemento vivo */
+  .halo {
+    box-shadow: 0 0 calc(var(--halo, 20) * 1px) rgb(var(--light-rgb) / 0.55),
+      0 0 calc(var(--halo, 20) * 2.6px) rgb(var(--light-rgb) / 0.22);
+  }
+
+  .hairline {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--linen) 12%, var(--linen) 88%, transparent);
+  }
+
+  /* Etiqueta de anotación técnica (planos arquitectónicos) */
+  .annot {
+    font-family: "Geist Mono Variable", ui-monospace, monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

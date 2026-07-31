@@ -1,0 +1,72 @@
+# =============================================================================
+# lighting_recommendations.yaml
+# -----------------------------------------------------------------------------
+# Motor de reglas de recomendacion (lightingAnalyzer/recommender.py).
+#
+# Cada regla se evalua en el ORDEN en que aparece en esta lista. Se aplica la
+# PRIMERA regla cuyas condiciones se cumplan todas; el resto se ignora. Los
+# campos de condicion son opcionales: omitir uno equivale a "sin restriccion"
+# en ese extremo. Todos los porcentajes son 0-100 y se comparan contra
+# natural_percentage / artificial_percentage.
+#
+# Campos disponibles por regla:
+#   name                  -> identificador corto (para trazabilidad/logs)
+#   min_natural_pct       -> natural_percentage debe ser >= este valor
+#   max_natural_pct       -> natural_percentage debe ser <= este valor
+#   min_artificial_pct    -> artificial_percentage debe ser >= este valor
+#   max_artificial_pct    -> artificial_percentage debe ser <= este valor
+#   message               -> texto de recomendacion devuelto al usuario
+#
+# La ultima regla de la lista debe quedar sin condiciones (catch-all) para
+# garantizar que SIEMPRE se devuelva una recomendacion.
+# =============================================================================
+
+rules:
+  - name: predominantemente_natural
+    min_natural_pct: 80.0
+    message: >-
+      La escena recibe iluminacion natural predominante. Se recomienda apagar
+      las luminarias cercanas a las ventanas y conservar encendidas unicamente
+      las que iluminan zonas alejadas de la luz natural, para reducir el
+      consumo energetico sin afectar el confort visual.
+
+  - name: mayormente_natural
+    min_natural_pct: 60.0
+    max_natural_pct: 80.0
+    message: >-
+      La escena presenta un aporte natural mayoritario. Se recomienda usar las
+      luminarias solo como apoyo puntual en las zonas mas alejadas de las
+      ventanas, evitando mantenerlas encendidas de forma generalizada.
+
+  - name: mixta_equilibrada
+    min_natural_pct: 40.0
+    max_natural_pct: 60.0
+    message: >-
+      La escena presenta una combinacion equilibrada de iluminacion natural y
+      artificial. Se recomienda mantener una iluminacion mixta: apagar
+      luminarias cercanas a las ventanas y conservar unicamente las necesarias
+      para garantizar una iluminacion uniforme en toda la escena.
+
+  - name: mayormente_artificial
+    min_artificial_pct: 60.0
+    max_artificial_pct: 80.0
+    message: >-
+      La escena depende mayoritariamente de iluminacion artificial, con un
+      aporte natural limitado. Se recomienda maximizar el uso de la luz
+      natural disponible (por ejemplo, evitando cortinas u obstrucciones en
+      las ventanas) antes de recurrir a luminarias adicionales.
+
+  - name: predominantemente_artificial
+    max_natural_pct: 20.0
+    message: >-
+      La escena depende casi en su totalidad de iluminacion artificial. Se
+      recomienda mantener las luminarias encendidas, dado que el aporte de luz
+      natural detectado es insuficiente para garantizar un nivel de
+      iluminacion adecuado.
+
+  - name: default
+    message: >-
+      No se identifico un patron dominante claro de iluminacion natural ni
+      artificial. Se recomienda revisar la distribucion de ventanas y
+      luminarias en la escena y ajustar la iluminacion artificial segun las
+      necesidades visuales del espacio.
