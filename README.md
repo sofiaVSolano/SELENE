@@ -20,9 +20,15 @@ ninguno de los dos corre en cada frame en modo tiempo real (ver "Diseno
 tecnico relevante").
 
 Este workspace **no entrena nada**: solo consume los checkpoints ya
-entregados por ambos proyectos de investigacion (copiados en `weights/`, ver
-"Origen de los pesos" mas abajo). Los repos de investigacion originales no
-se modifican.
+entregados por ambos proyectos de investigacion (copiados en
+`backend/weights/`, ver "Origen de los pesos" mas abajo). Los repos de
+investigacion originales no se modifican.
+
+> El repo esta compactado en dos carpetas: `backend/` (motor de vision +
+> API FastAPI) y `frontend/` (SELENE, la app web). Este README documenta el
+> motor de vision de escritorio (pipeline en tiempo real / imagen unica);
+> para la app web ver "Aplicación web SELENE" mas abajo y `backend/README.md`
+> / `frontend/README.md`.
 
 ## Alcance actual
 
@@ -36,10 +42,10 @@ fuera de alcance de esta version.
 ## Instalacion
 
 ```bash
-cd ModeloDeteccionLamp_App
+cd ModeloDeteccionLamp_App/backend
 python -m venv .venv
 .venv\Scripts\activate            # Windows
-pip install -r requirements.txt
+pip install -r requirements-core.txt
 ```
 
 Si se reinstala `torch`/`torchvision` en otra maquina con GPU, usar el
@@ -54,6 +60,7 @@ pip install torch==2.12.1 torchvision==0.27.1 --index-url https://download.pytor
 ### Tiempo real (webcam o video)
 
 ```bash
+cd backend
 python scripts/run_realtime.py                        # webcam por defecto (indice 0)
 python scripts/run_realtime.py --source 1              # otra camara
 python scripts/run_realtime.py --source ruta\video.mp4 # archivo de video
@@ -61,11 +68,12 @@ python scripts/run_realtime.py --lighting-interval 20 --person-interval 8 --devi
 ```
 
 Teclas: `q` para salir, `s` para guardar un snapshot con reporte completo
-(graficas + JSON/CSV/MD/HTML) en `reports/lighting_analysis/`.
+(graficas + JSON/CSV/MD/HTML) en `backend/reports/lighting_analysis/`.
 
 ### Imagen unica (reporte completo)
 
 ```bash
+cd backend
 python scripts/analyze_image.py --image test_media/casaSofia.jpeg
 ```
 
@@ -73,26 +81,31 @@ python scripts/analyze_image.py --image test_media/casaSofia.jpeg
 
 ```
 ModeloDeteccionLamp_App/
-├── configs/
-│   ├── models.yaml                      # pesos, umbrales, throttling, fuente de video
-│   └── lighting_*.yaml                  # config de lightingAnalyzer (pesos/umbrales/reglas)
-├── lightingAnalyzer/                    # modulo de analisis de iluminacion (CV clasico)
-├── weights/
-│   ├── lighting/FasterRCNN_ADE20KOnly_best.pth
-│   └── person/RTDETR_COCO.pt
-├── detectors/
-│   ├── lighting_detector.py             # wrapper FasterRCNN+ADE20K -> list[dict]
-│   └── person_detector.py               # wrapper RT-DETR+COCO -> list[dict]
-├── app/
-│   ├── device_utils.py                  # seleccion cuda/cpu
-│   ├── overlay.py                       # HUD (cajas, FPS, %natural/artificial)
-│   ├── throttled_detector.py            # re-ejecuta un detector cada N frames (opcional: en hilo aparte)
-│   └── realtime_pipeline.py             # loop de video + throttling de ambos detectores
-├── scripts/
-│   ├── run_realtime.py
-│   └── analyze_image.py
-├── test_media/                          # imagen + detecciones de referencia para pruebas
-└── reports/lighting_analysis/           # salida en runtime
+├── backend/
+│   ├── configs/
+│   │   ├── models.yaml                  # pesos, umbrales, throttling, fuente de video
+│   │   └── lighting_*.yaml              # config de lightingAnalyzer (pesos/umbrales/reglas)
+│   ├── lightingAnalyzer/                # modulo de analisis de iluminacion (CV clasico)
+│   ├── weights/
+│   │   ├── lighting/FasterRCNN_ADE20KOnly_best.pth
+│   │   └── person/RTDETR_COCO.pt
+│   ├── detectors/
+│   │   ├── lighting_detector.py         # wrapper FasterRCNN+ADE20K -> list[dict]
+│   │   └── person_detector.py           # wrapper RT-DETR+COCO -> list[dict]
+│   ├── app/
+│   │   ├── device_utils.py              # seleccion cuda/cpu
+│   │   ├── overlay.py                   # HUD (cajas, FPS, %natural/artificial)
+│   │   ├── throttled_detector.py        # re-ejecuta un detector cada N frames (opcional: en hilo aparte)
+│   │   └── realtime_pipeline.py         # loop de video + throttling de ambos detectores
+│   ├── scripts/
+│   │   ├── run_realtime.py
+│   │   ├── analyze_image.py
+│   │   └── init_db.py
+│   ├── test_media/                      # imagen + detecciones de referencia para pruebas
+│   ├── reports/lighting_analysis/       # salida en runtime
+│   ├── database/                        # schema.sql + datos SQLite (ver mas abajo)
+│   └── api/                             # FastAPI: auth, luminarias, /api/deteccion/frame
+└── frontend/                            # React + Vite + Tailwind: landing, acceso, panel de escaneo
 ```
 
 ## Diseno tecnico relevante
@@ -131,19 +144,19 @@ ve la cámara con los bounding boxes y el % de iluminación calculados por
 estos mismos modelos.
 
 ```
-├── backend/    # FastAPI: auth (JWT), luminarias, /api/deteccion/frame
-│               # (reutiliza detectors/ y lightingAnalyzer/ sin duplicarlos)
-├── frontend/   # React + Vite + Tailwind: landing, acceso, panel de escaneo
-└── database/   # schema.sql (SQLite, fuente de verdad del esquema) + ERD.
-                # schema_postgres.sql es la version anterior, de referencia.
+├── backend/            # FastAPI: auth (JWT), luminarias, /api/deteccion/frame
+│   ├── api/            # (reutiliza detectors/ y lightingAnalyzer/ sin duplicarlos)
+│   └── database/       # schema.sql (SQLite, fuente de verdad del esquema) + ERD.
+│                        # schema_postgres.sql es la version anterior, de referencia.
+└── frontend/           # React + Vite + Tailwind: landing, acceso, panel de escaneo
 ```
 
-`backend/api/detection_service.py` es el puente: agrega la raíz del repo a
-`sys.path` e importa `detectors.person_detector`, `detectors.lighting_detector`
-y `lightingAnalyzer.analyzer` directamente, así que necesita los mismos
-checkpoints en `weights/` que el pipeline de escritorio. Ver
-`backend/README.md` y `frontend/README.md` para instrucciones de arranque sin
-Docker (venv + npm).
+`backend/api/detection_service.py` es el puente: agrega la raíz de `backend/`
+a `sys.path` e importa `detectors.person_detector`,
+`detectors.lighting_detector` y `lightingAnalyzer.analyzer` directamente, así
+que necesita los mismos checkpoints en `backend/weights/` que el pipeline de
+escritorio. Ver `backend/README.md` y `frontend/README.md` para instrucciones
+de arranque sin Docker (venv + npm).
 
 ### Levantar todo con Docker
 
@@ -159,8 +172,8 @@ docker compose up --build
 
 El primer build tarda varios minutos (instala torch/torchvision/ultralytics
 dentro de la imagen del backend); los siguientes usan la cache de capas de
-Docker. Necesita los checkpoints ya copiados en `weights/` (ver más abajo),
-porque se incluyen en la imagen del backend.
+Docker. Necesita los checkpoints ya copiados en `backend/weights/` (ver más
+abajo), porque se incluyen en la imagen del backend.
 
 Servicios y puertos:
 
@@ -185,8 +198,8 @@ docker compose down                  # parar todo (con -v para borrar tambien la
 
 | Archivo en este repo | Copiado desde |
 |---|---|
-| `weights/lighting/FasterRCNN_ADE20KOnly_best.pth` | `ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_best.pth` |
-| `weights/person/RTDETR_COCO.pt` | `ModelosDeteccionComp/Proyecto_RTDETR_COCO/modelosEntrenados/RTDETR_COCO.pt` |
+| `backend/weights/lighting/FasterRCNN_ADE20KOnly_best.pth` | `ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_best.pth` |
+| `backend/weights/person/RTDETR_COCO.pt` | `ModelosDeteccionComp/Proyecto_RTDETR_COCO/modelosEntrenados/RTDETR_COCO.pt` |
 
 Los pesos se **copiaron**, no se movieron: los proyectos de investigacion
 originales quedan intactos y siguen siendo la fuente de verdad si se

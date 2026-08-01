@@ -7,12 +7,12 @@ __pycache__/
 *.pyc
 
 # Pesos entrenados (pesados; se documentan en README como obtenerlos/copiarlos)
-weights/**/*.pth
-weights/**/*.pt
+backend/weights/**/*.pth
+backend/weights/**/*.pt
 
 # Salidas en runtime
-reports/lighting_analysis/*
-!reports/lighting_analysis/.gitkeep
+backend/reports/lighting_analysis/*
+!backend/reports/lighting_analysis/.gitkeep
 
 # Editor / SO
 .vscode/
@@ -30,6 +30,6 @@ backend/.env
 
 # Base de datos SQLite local (datos reales de usuarios/detecciones/etc.,
 # igual que antes no se versionaba el volumen de Postgres). Vive en
-# database/data/ (bind mount de Docker, ver docker-compose.yml).
-database/*.db
-database/data/
+# backend/database/data/ (bind mount de Docker, ver docker-compose.yml).
+backend/database/*.db
+backend/database/data/

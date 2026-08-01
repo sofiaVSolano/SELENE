@@ -1,4 +1,4 @@
-# Usado por el build del backend (context = raiz del repo, ver backend/Dockerfile).
+# Usado por el build del backend (context = backend/, ver ../docker-compose.yml).
 # OJO: a diferencia de .gitignore, NO excluye weights/*.pth ni *.pt: el
 # contenedor los necesita para poder correr inferencia real.
 
@@ -7,10 +7,6 @@
 venv/
 __pycache__/
 *.pyc
-
-frontend/node_modules/
-frontend/dist/
-backend/.venv/
 
 test_media/
 reports/lighting_analysis/*

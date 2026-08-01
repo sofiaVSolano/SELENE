@@ -16,9 +16,11 @@ bcrypt>=4.1.2
 PyJWT>=2.8.0
 
 # === Modelos de vision (PersonDetector / LightingDetector / lightingAnalyzer) ===
-# Reutiliza el entorno de inferencia ya definido en la raiz del proyecto:
-# torch, torchvision, ultralytics, opencv-python, PyYAML, matplotlib, etc.
--r ../requirements.txt
+# Reutiliza el entorno de inferencia base del motor CV (torch, torchvision,
+# ultralytics, opencv-python, PyYAML, matplotlib, etc.), definido aparte en
+# requirements-core.txt porque tambien lo usan los scripts CLI (scripts/) sin
+# necesitar fastapi/sqlalchemy/etc.
+-r requirements-core.txt
 
 # === Modulo de prediccion energetica (api/energy/) ===
 # El modelo ya entrenado es un LGBMRegressor (joblib); scikit-learn/pandas/

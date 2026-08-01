@@ -6,10 +6,11 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# backend/api/config.py -> backend/ -> raiz del proyecto (donde viven
-# detectors/, lightingAnalyzer/, weights/, configs/, database/).
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# backend/api/config.py -> backend/ (raiz del proyecto CV: detectors/,
+# lightingAnalyzer/, weights/, configs/, database/ viven todas dentro de
+# backend/ desde la compactacion a dos carpetas backend+frontend).
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = BACKEND_ROOT
 
 # `.as_posix()` (no `str()`) a proposito: en Windows da "C:/..." y en Linux
 # "/app/...", y en ambos casos concatenar "sqlite:///" + esa ruta produce la

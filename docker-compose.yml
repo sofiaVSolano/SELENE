@@ -14,8 +14,7 @@
 services:
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
     restart: unless-stopped
     env_file:
       - backend/.env
@@ -41,7 +40,7 @@ services:
       # `docker exec`. Antes vivia en el volumen nombrado `selene_db_data`
       # (invisible fuera del contenedor); ese volumen quedo intacto como
       # respaldo pero ya no se usa.
-      - ./database/data:/app/data
+      - ./backend/database/data:/app/data
       # Los PDF de reportes (`asistente_reports_dir` en config.py) vivian
       # solo en la capa escribible del contenedor: cada `--build` del backend
       # los borraba de disco sin tocar la fila correspondiente en la base de
