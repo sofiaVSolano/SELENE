@@ -46,6 +46,15 @@ def health() -> dict:
 
 @app.on_event("startup")
 def _startup() -> None:
+    # SQLite es un archivo: la propia API se asegura de que el esquema
+    # exista antes de atender la primera peticion (antes, con Postgres,
+    # esto lo hacia un contenedor `db-init` aparte esperando a que el
+    # servidor de base de datos levantara). Idempotente: no hace nada si
+    # `database/selene.db` ya tiene las tablas.
+    from .db_init import aplicar_schema
+
+    aplicar_schema()
+
     # Carga los modelos de vision UNA vez al arrancar (no en la primera
     # peticion), para que el dashboard no espere el costo de inicializacion
     # de CUDA/pesos en el primer escaneo.

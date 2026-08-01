@@ -236,4 +236,109 @@ export const sonido = {
     tono({ freq: 392, dur: 0.5, tipo: "sine", gain: 0.1, ataque: 0.02 });
     setTimeout(() => tono({ freq: 329.63, dur: 0.7, tipo: "sine", gain: 0.08, ataque: 0.02 }), 130);
   },
+
+  /* ---- Vocabulario interno (mismo universo: senos calidos + ruido filtrado) ---- */
+
+  /** Confirmacion: dos notas que suben. La version corta del sonido de "luz". */
+  confirmar() {
+    tono({ freq: 587.33, dur: 0.18, tipo: "sine", gain: 0.075, ataque: 0.006 });
+    setTimeout(() => tono({ freq: 880, dur: 0.34, tipo: "sine", gain: 0.055, ataque: 0.01 }), 80);
+  },
+
+  /** Fallo: cae en vez de pitar. Se acompana del parpadeo de la luz global. */
+  fallo() {
+    tono({ freq: 330, dur: 0.22, tipo: "sine", gain: 0.08, glide: 196 });
+    ruido({ dur: 0.05, tipo: "lowpass", freq: 600, gain: 0.12, decay: 0.08 });
+  },
+
+  /** Micro abierto / cerrado: el aire de una cabina, no un "beep". */
+  microfono(abriendo = true) {
+    ruido({
+      dur: 0.18,
+      tipo: "bandpass",
+      freq: abriendo ? 700 : 480,
+      q: 0.7,
+      gain: 0.1,
+      decay: 0.12,
+    });
+    tono({
+      freq: abriendo ? 420 : 300,
+      dur: 0.2,
+      tipo: "sine",
+      gain: 0.06,
+      glide: abriendo ? 660 : 190,
+    });
+  },
+
+  /** Inferencia terminada: campanada corta y brillante. El tono sube con la confianza. */
+  inferencia(confianza = 0.8) {
+    tono({ freq: 740 + confianza * 420, dur: 0.5, tipo: "sine", gain: 0.05, ataque: 0.004 });
+    tono({ freq: (740 + confianza * 420) * 1.5, dur: 0.32, tipo: "sine", gain: 0.022, ataque: 0.01 });
+    ruido({ dur: 0.02, tipo: "highpass", freq: 5200, gain: 0.05, decay: 0.04 });
+  },
+
+  /** Modelo cargado: el filamento termina de calentar y "engancha". */
+  modeloListo() {
+    tono({ freq: 196, dur: 0.28, tipo: "triangle", gain: 0.07, glide: 392 });
+    setTimeout(() => tono({ freq: 784, dur: 0.5, tipo: "sine", gain: 0.04, ataque: 0.03 }), 150);
+  },
+
+  /**
+   * Impresora: el "trrrrrr". Ruido de banda estrecha modulado a ~26 Hz, que es
+   * la frecuencia a la que el oido deja de oir clicks sueltos y empieza a oir
+   * un motor. Devuelve la funcion para detenerlo.
+   */
+  rodillo() {
+    const ac = motor();
+    if (!ac) return () => {};
+    const src = ac.createBufferSource();
+    src.buffer = bufferRuido(2);
+    src.loop = true;
+
+    const filtro = ac.createBiquadFilter();
+    filtro.type = "bandpass";
+    filtro.frequency.value = 1150;
+    filtro.Q.value = 4.5;
+
+    const g = ac.createGain();
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.12);
+
+    // LFO: el traqueteo del carro
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.type = "square";
+    lfo.frequency.value = 26;
+    lfoGain.gain.value = 0.045;
+    lfo.connect(lfoGain).connect(g.gain);
+
+    src.connect(filtro).connect(g).connect(master);
+    src.start(t);
+    lfo.start(t);
+
+    return () => {
+      const fin = ac.currentTime;
+      g.gain.cancelScheduledValues(fin);
+      g.gain.setValueAtTime(g.gain.value, fin);
+      g.gain.exponentialRampToValueAtTime(0.0001, fin + 0.18);
+      try {
+        src.stop(fin + 0.25);
+        lfo.stop(fin + 0.25);
+      } catch {
+        /* ya detenido */
+      }
+    };
+  },
+
+  /** La hoja terminada cae en la bandeja. */
+  hojaCae() {
+    ruido({ dur: 0.12, tipo: "highpass", freq: rnd(1600, 2400), gain: 0.11, decay: 0.14 });
+    setTimeout(() => tono({ freq: 150, dur: 0.09, tipo: "sine", gain: 0.05, glide: 96 }), 110);
+  },
+
+  /** Barrido de escaneo: la luz recorriendo la imagen. */
+  barrido() {
+    tono({ freq: 240, dur: 0.85, tipo: "sine", gain: 0.028, ataque: 0.2, glide: 700 });
+  },
 };

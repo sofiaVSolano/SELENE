@@ -1,42 +1,17 @@
-# Levanta TODO el proyecto SELENE: Postgres, backend (FastAPI + modelos de
-# vision) y frontend (Vite dev server). Ver README.md, "Levantar todo con
-# Docker" para el paso a paso.
+# Levanta TODO el proyecto SELENE: backend (FastAPI + modelos de vision,
+# base de datos SQLite incluida) y frontend (Vite dev server). Ver
+# README.md, "Levantar todo con Docker" para el paso a paso.
 #
 #   docker compose up --build
 #
 # Primer build: tarda varios minutos (instala torch/torchvision/ultralytics
 # dentro de la imagen del backend). Builds posteriores usan la cache de capas.
+#
+# No hay servicio de base de datos aparte: SQLite es un archivo, no un
+# servidor. El propio backend crea/actualiza el esquema al arrancar (ver
+# `api.db_init.aplicar_schema()`, llamado desde el startup de `main.py`).
 
 services:
-  db:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: selene
-      POSTGRES_PASSWORD: selene
-      POSTGRES_DB: selene_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - selene_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U selene -d selene_db"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
-
-  db-init:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    environment:
-      DATABASE_URL: postgresql+psycopg://selene:selene@db:5432/selene_db
-    command: ["python", "scripts/init_db.py"]
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
   backend:
     build:
       context: .
@@ -45,20 +20,38 @@ services:
     env_file:
       - backend/.env
     environment:
-      # Sobrescribe lo que diga backend/.env: dentro de la red de Docker la
-      # base de datos se llama "db", no "localhost", y ENERGY_MODEL_DIR de
-      # backend/.env es una ruta de Windows (fuera del contenedor) que no
-      # existe aqui dentro -- se remapea al punto de montaje de abajo.
-      DATABASE_URL: postgresql+psycopg://selene:selene@db:5432/selene_db
+      # Sobrescribe lo que diga backend/.env: DATABASE_URL ahi apunta a una
+      # ruta de Windows (fuera del contenedor) -- aqui la base SQLite vive
+      # en el volumen persistente montado abajo. ENERGY_MODEL_DIR tiene el
+      # mismo motivo (ruta de Windows fuera del contenedor).
+      DATABASE_URL: sqlite:////app/data/selene.db
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
       ENERGY_MODEL_DIR: /energy_model
     volumes:
       - C:\Users\sofia\OneDrive\ConsumoEnergeticoComp\ProyectoPrediccionEnergetica:/energy_model:ro
+      # La base SQLite vive en /app/data, NO en /app/database: esa ultima
+      # ruta ya trae `schema.sql` horneado en la imagen (ver Dockerfile), y
+      # si el volumen persistente se montara ahi encima, lo taparia (un
+      # volumen nuevo empieza vacio) dejando a `aplicar_schema()` sin el
+      # archivo que tiene que leer.
+      #
+      # Bind mount (no volumen nombrado): el archivo .db queda en
+      # database/data/selene.db, visible desde Windows, para poder abrirlo
+      # con DB Browser for SQLite y ver los datos reales sin pasar por
+      # `docker exec`. Antes vivia en el volumen nombrado `selene_db_data`
+      # (invisible fuera del contenedor); ese volumen quedo intacto como
+      # respaldo pero ya no se usa.
+      - ./database/data:/app/data
+      # Los PDF de reportes (`asistente_reports_dir` en config.py) vivian
+      # solo en la capa escribible del contenedor: cada `--build` del backend
+      # los borraba de disco sin tocar la fila correspondiente en la base de
+      # datos (que si persiste), dejando reportes "fantasma" -- el boton
+      # visualizar/descargar fallaba con 404 porque el archivo ya no
+      # existia. Con este volumen los PDF sobreviven a cualquier rebuild,
+      # igual que la base de datos.
+      - selene_reports:/app/reports/asistente
     ports:
       - "8000:8000"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
 
   frontend:
     build:
@@ -75,5 +68,5 @@ services:
       - backend
 
 volumes:
-  selene_pg_data:
+  selene_reports:
   frontend_node_modules:

@@ -27,3 +27,9 @@ frontend/.env
 
 # Backend (SELENE)
 backend/.env
+
+# Base de datos SQLite local (datos reales de usuarios/detecciones/etc.,
+# igual que antes no se versionaba el volumen de Postgres). Vive en
+# database/data/ (bind mount de Docker, ver docker-compose.yml).
+database/*.db
+database/data/

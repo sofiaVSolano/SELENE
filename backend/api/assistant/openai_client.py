@@ -85,6 +85,77 @@ def clasificar_tipos_reporte(transcript: str, catalogo: dict[str, dict]) -> list
     return resultado
 
 
+def generar_reporte_detallado(contexto_datos: str, instrucciones: str, transcript: str = "") -> dict:
+    """Le pide al modelo que redacte un reporte DETALLADO y a la medida de
+    lo que pidio el usuario (`instrucciones`, en sus propias palabras),
+    anclado EXCLUSIVAMENTE en `contexto_datos` (el mismo snapshot que ancla
+    al chat, ver `context_builder.construir_contexto_datos`, mas el desglose
+    por luminaria que arma `reports._datos_detallado`).
+
+    A diferencia de `datos_consumo_diario`/`datos_consumo_mensual`/
+    `datos_plan_ahorro` (plantillas fijas en `report_data.py` que solo
+    formatean numeros ya calculados, sin que el LLM intervenga), aqui es el
+    modelo quien decide que secciones incluir, en que orden y con que
+    profundidad -- por eso el reporte "se siente hecho a su medida" en vez
+    de una plantilla generica con otro titulo.
+
+    JSON mode es obligatorio, no cosmetico: sin una forma fija, un LLM libre
+    para redactar como quiera llega a un formato de reporte distinto en cada
+    llamada, imposible de dibujar de forma consistente en PDF (ver
+    `pdf_renderer.render_pdf`, que espera `{"titulo", "parrafos"|"tabla"}`
+    por seccion). `reports._sanear_secciones` valida el resultado igual,
+    porque un LLM puede devolver JSON valido con una forma parecida pero no
+    exacta."""
+    system = f"""Eres el redactor de reportes de SELENE, un sistema de gestion energetica que combina \
+vision por computador con un modelo de prediccion de consumo ya entrenado. Vas a escribir un reporte \
+DETALLADO en espanol, basado EXCLUSIVAMENTE en el CONTEXTO DE DATOS de abajo.
+
+Regla mas importante: nunca inventes una cifra que no este en el contexto. Si el usuario pidio algo \
+que los datos disponibles no cubren (una zona, un periodo, una comparacion que no aparece abajo), \
+dilo explicitamente en el reporte ("no hay datos suficientes sobre X todavia") en vez de rellenar con \
+numeros ficticios o genericos.
+
+El usuario pidio, en sus propias palabras, lo siguiente -- usa esto para decidir que secciones \
+incluir, en que orden y con que profundidad, de modo que el reporte se sienta hecho a su medida y no \
+una plantilla generica:
+"{instrucciones or 'Un reporte detallado y completo, cubriendo todo lo que los datos disponibles permitan analizar.'}"
+
+Responde SOLO un objeto JSON con esta forma exacta (nada de texto fuera del JSON):
+{{
+  "periodo": "string: el rango de fechas o momento que cubre el reporte",
+  "resumen": "string: 1 a 2 parrafos de resumen ejecutivo",
+  "secciones": [
+    {{"titulo": "string", "parrafos": ["string", "..."]}},
+    {{"titulo": "string", "tabla": [["Encabezado1", "Encabezado2"], ["fila1col1", "fila1col2"]]}}
+  ]
+}}
+
+Entre 3 y 8 secciones. Usa "tabla" para series numericas o comparaciones (se leen mejor que en \
+parrafos); usa "parrafos" para el analisis y las conclusiones. Toda tabla debe traer su fila de \
+encabezado como primer elemento.
+
+=== CONTEXTO DE DATOS ===
+{contexto_datos}"""
+
+    mensajes = [{"role": "system", "content": system}]
+    mensajes.append(
+        {"role": "user", "content": f"Conversacion reciente con el usuario, para contexto adicional:\n{transcript}"}
+        if transcript
+        else {"role": "user", "content": "Genera el reporte."}
+    )
+
+    respuesta = _client().chat.completions.create(
+        model=settings.openai_chat_model,
+        messages=mensajes,
+        temperature=0.4,
+        response_format={"type": "json_object"},
+    )
+    try:
+        return json.loads(respuesta.choices[0].message.content)
+    except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+        raise ValueError("El modelo no devolvio un reporte con un formato valido. Intenta de nuevo.") from exc
+
+
 def sintetizar_voz(texto: str) -> bytes:
     """Texto -> audio MP3 (TTS)."""
     respuesta = _client().audio.speech.create(

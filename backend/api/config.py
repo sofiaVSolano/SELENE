@@ -11,12 +11,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
+# `.as_posix()` (no `str()`) a proposito: en Windows da "C:/..." y en Linux
+# "/app/...", y en ambos casos concatenar "sqlite:///" + esa ruta produce la
+# URL absoluta correcta (3 barras + "C:/..." en Windows, 3 barras + la barra
+# inicial de "/app/..." = 4 en Linux). Con `str()` puro, las backslashes de
+# Windows romperian la URL.
+_RUTA_SQLITE_DEFECTO = (PROJECT_ROOT / "database" / "selene.db").as_posix()
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", extra="ignore")
 
     # --- Base de datos -----------------------------------------------------
-    database_url: str = "postgresql+psycopg://selene:selene@localhost:5432/selene_db"
+    # SQLite: un archivo, no un servidor. Antes era Postgres
+    # (postgresql+psycopg://...); ver database/schema_postgres.sql si hace
+    # falta volver a esa version.
+    database_url: str = f"sqlite:///{_RUTA_SQLITE_DEFECTO}"
 
     # --- Seguridad / JWT -----------------------------------------------------
     jwt_secret_key: str = "CAMBIAR_ESTE_SECRETO_EN_PRODUCCION"

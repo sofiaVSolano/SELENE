@@ -126,7 +126,7 @@ ModeloDeteccionLamp_App/
 
 Además del pipeline de escritorio (`scripts/run_realtime.py`), el repo
 incluye la aplicación web **SELENE**: landing page, login/registro con
-persistencia en PostgreSQL y un panel en vivo donde, tras iniciar sesión, se
+persistencia en SQLite y un panel en vivo donde, tras iniciar sesión, se
 ve la cámara con los bounding boxes y el % de iluminación calculados por
 estos mismos modelos.
 
@@ -134,7 +134,8 @@ estos mismos modelos.
 ├── backend/    # FastAPI: auth (JWT), luminarias, /api/deteccion/frame
 │               # (reutiliza detectors/ y lightingAnalyzer/ sin duplicarlos)
 ├── frontend/   # React + Vite + Tailwind: landing, acceso, panel de escaneo
-└── database/   # schema.sql + ERD (fuente de verdad del esquema PostgreSQL)
+└── database/   # schema.sql (SQLite, fuente de verdad del esquema) + ERD.
+                # schema_postgres.sql es la version anterior, de referencia.
 ```
 
 `backend/api/detection_service.py` es el puente: agrega la raíz del repo a
@@ -146,9 +147,10 @@ Docker (venv + npm).
 
 ### Levantar todo con Docker
 
-El `docker-compose.yml` de la raíz levanta los 4 servicios (Postgres, un
-contenedor que inicializa el esquema una sola vez, el backend y el
-frontend):
+El `docker-compose.yml` de la raíz levanta 2 servicios (backend y frontend).
+No hay un servicio de base de datos aparte: SQLite es un archivo, no un
+servidor, y el propio backend crea/actualiza el esquema al arrancar (ver
+`backend/api/db_init.py`, idempotente):
 
 ```bash
 cp backend/.env.example backend/.env    # ajustar JWT_SECRET_KEY para produccion
@@ -164,9 +166,7 @@ Servicios y puertos:
 
 | Servicio | Puerto | Qué es |
 |---|---|---|
-| `db` | 5432 | PostgreSQL 16 (volumen persistente `selene_pg_data`) |
-| `db-init` | — | Aplica `database/schema.sql` una vez y termina (`docker compose ps` lo muestra como "Exited (0)", es esperado) |
-| `backend` | 8000 | API FastAPI — `http://localhost:8000/docs` |
+| `backend` | 8000 | API FastAPI — `http://localhost:8000/docs`. La base SQLite vive en el volumen `selene_db_data` (montado en `/app/data`, no en `/app/database`, donde ya vive `schema.sql` horneado en la imagen). |
 | `frontend` | 5173 | SELENE — `http://localhost:5173` |
 
 El frontend corre con hot-reload (el código de `frontend/` está montado como

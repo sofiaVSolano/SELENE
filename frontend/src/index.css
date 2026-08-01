@@ -220,6 +220,102 @@
     background: linear-gradient(90deg, transparent, var(--linen) 12%, var(--linen) 88%, transparent);
   }
 
+  /* --- Vidrio: papel translúcido, nunca "card oscura con blur" ---
+     Se usa en tarjetas que flotan SOBRE algo (acceso, módulos del centro
+     de monitoreo, barra de voz). El tinte viene de la luz global, así que
+     el vidrio cambia de temperatura con la hora igual que el resto.     */
+  .vidrio {
+    position: relative;
+    background: linear-gradient(
+      calc(var(--light-x) * 180deg + 90deg),
+      rgb(253 252 250 / 0.82) 0%,
+      rgb(247 244 239 / 0.68) 100%
+    );
+    backdrop-filter: blur(18px) saturate(1.15);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    border: 1px solid rgb(255 255 255 / 0.7);
+    box-shadow: var(--shadow-float), inset 0 1px 0 rgb(255 255 255 / 0.85);
+    border-radius: var(--r-xl);
+  }
+
+  /* Módulo flotante del panel lateral. No es una "card": es una placa de
+     papel levantada del fondo, con su propia sombra derivada de la luz. */
+  .modulo {
+    position: relative;
+    border-radius: var(--r-lg);
+    border: 1px solid var(--linen);
+    background: linear-gradient(
+      calc(var(--light-x) * 180deg + 90deg),
+      var(--paper) 0%,
+      var(--paper-2) 100%
+    );
+    box-shadow: var(--shadow-raise);
+    transition: box-shadow var(--t-ui) var(--ease-light),
+      transform var(--t-ui) var(--ease-light);
+  }
+  .modulo:hover {
+    box-shadow: var(--shadow-float);
+    transform: translateY(-2px);
+  }
+
+  /* Filo superior de luz: marca qué módulo acaba de recibir dato nuevo. */
+  .filo::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    height: 2px;
+    width: 100%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--light-rgb) / 0.9) 50%,
+      transparent
+    );
+    opacity: 0;
+    transition: opacity var(--t-bloom) var(--ease-light);
+  }
+  .filo[data-vivo="si"]::after {
+    opacity: 1;
+  }
+
+  /* Respiración: la app está viva incluso cuando nadie la toca. */
+  .respira {
+    animation: respiro 5.4s ease-in-out infinite;
+  }
+
+  /* Barrido de escaneo (estado de carga del monitoreo). */
+  .barrido::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgb(var(--light-rgb) / 0.55) 48%,
+      rgb(var(--light-rgb) / 0.9) 50%,
+      rgb(var(--light-rgb) / 0.55) 52%,
+      transparent 100%
+    );
+    background-size: 100% 34%;
+    background-repeat: no-repeat;
+    animation: escanear 2.1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+    mix-blend-mode: plus-lighter;
+  }
+
+  /* Papel de la impresora: fibra fina y horizontal. */
+  .fibra {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 5px,
+      rgb(25 21 18 / 0.028) 5px,
+      rgb(25 21 18 / 0.028) 6px
+    );
+  }
+
   /* Etiqueta de anotación técnica (planos arquitectónicos) */
   .annot {
     font-family: "Geist Mono Variable", ui-monospace, monospace;
@@ -227,6 +323,27 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-3);
+  }
+}
+
+@keyframes respiro {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.012);
+    opacity: 1;
+  }
+}
+
+@keyframes escanear {
+  0% {
+    background-position: 0 -40%;
+  }
+  100% {
+    background-position: 0 140%;
   }
 }
 

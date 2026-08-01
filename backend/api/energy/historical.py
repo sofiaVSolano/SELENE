@@ -164,6 +164,56 @@ def comparar_por_ocupacion(db: Session, limite: int = 500) -> list[dict]:
     ]
 
 
+def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1000) -> list[dict]:
+    """Consumo/ahorro estimado agrupado por luminaria y zona, cruzando
+    `consumo_energetico_estimado -> detecciones_ocupacion -> luminarias/zonas`
+    por `id_deteccion`. Los demas `resumen_*`/`comparar_*` de este modulo dan
+    un solo total global; esto es lo que hace falta para un reporte que el
+    usuario pida "sobre la sala X" o "comparando luminarias" -- sin este
+    desglose, un reporte "detallado" no podria distinguir de donde viene el
+    consumo, solo repetir el mismo total agregado con otras palabras."""
+    hasta = hasta or dt.datetime.now(dt.timezone.utc)
+    filas = db.execute(
+        select(
+            models.Luminaria.nombre,
+            models.Zona.nombre,
+            models.ConsumoEnergeticoEstimado.consumo_estimado_kwh,
+            models.ConsumoEnergeticoEstimado.ahorro_kwh,
+        )
+        .select_from(models.ConsumoEnergeticoEstimado)
+        .join(
+            models.DeteccionOcupacion,
+            models.ConsumoEnergeticoEstimado.id_deteccion == models.DeteccionOcupacion.id_deteccion,
+        )
+        .join(models.Luminaria, models.DeteccionOcupacion.id_luminaria == models.Luminaria.id_luminaria)
+        .join(models.Zona, models.Luminaria.id_zona == models.Zona.id_zona)
+        .where(
+            models.ConsumoEnergeticoEstimado.fecha >= desde,
+            models.ConsumoEnergeticoEstimado.fecha <= hasta,
+        )
+        .order_by(models.ConsumoEnergeticoEstimado.fecha.desc())
+        .limit(limite)
+    ).all()
+
+    por_luminaria: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for nombre_luminaria, nombre_zona, consumo, ahorro in filas:
+        por_luminaria.setdefault((nombre_luminaria, nombre_zona), []).append(
+            (float(consumo), float(ahorro))
+        )
+
+    resultado = [
+        {
+            "luminaria": nombre_luminaria,
+            "zona": nombre_zona,
+            "muestras": len(valores),
+            "consumo_estimado_kwh_total": round(sum(c for c, _ in valores), 4),
+            "ahorro_kwh_total": round(sum(a for _, a in valores), 4),
+        }
+        for (nombre_luminaria, nombre_zona), valores in por_luminaria.items()
+    ]
+    return sorted(resultado, key=lambda r: r["consumo_estimado_kwh_total"], reverse=True)
+
+
 def comparar_por_simulacion(db: Session, limite: int = 500) -> list[dict]:
     """Ahorro promedio observado por tipo de simulacion (cubre, de forma
     indirecta, la comparacion pedida por % de luz natural y por cantidad de

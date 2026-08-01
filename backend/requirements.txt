@@ -4,8 +4,10 @@ uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9        # necesario para UploadFile/Form
 
 # === Base de datos ===
+# SQLite: driver incluido en la libreria estandar de Python (modulo
+# sqlite3), no hace falta un paquete de driver aparte (antes psycopg, para
+# Postgres).
 SQLAlchemy>=2.0.30
-psycopg[binary]>=3.1.19
 pydantic-settings>=2.3.0
 email-validator>=2.1.1         # requerido por pydantic.EmailStr
 

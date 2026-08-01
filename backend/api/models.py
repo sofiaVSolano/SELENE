@@ -1,9 +1,33 @@
 """Modelos SQLAlchemy que mapean el esquema fisico definido en database/schema.sql.
 
-Las tablas y los tipos ENUM ya existen en PostgreSQL (creados por
-database/schema.sql, ver backend/scripts/init_db.py); aqui solo se declara el
-mapeo objeto-relacional que usa la API. `create_type=False` en cada Enum evita
-que SQLAlchemy intente volver a crear un tipo que la base de datos ya tiene.
+Las tablas ya existen en SQLite (creadas por database/schema.sql, ver
+backend/scripts/init_db.py); aqui solo se declara el mapeo objeto-relacional
+que usa la API.
+
+Migrado desde PostgreSQL: los cambios de fondo frente a la version anterior
+son los que exige SQLite, no un cambio de gusto --
+  - `Uuid(as_uuid=True)` en vez de `sqlalchemy.dialects.postgresql.UUID`: es
+    el tipo generico de SQLAlchemy 2.0, se guarda como TEXT en SQLite pero
+    se sigue leyendo/escribiendo como `uuid.UUID` en Python, asi que ningun
+    router/servicio que ya trataba estos campos como UUID tuvo que cambiar.
+  - `default=uuid.uuid4` en vez de `server_default=func.gen_random_uuid()`:
+    SQLite no tiene una funcion de generacion de UUID a nivel de base de
+    datos: el id se genera en Python al construir el objeto, antes del INSERT.
+  - `UTCDateTime` (ver `database.py`) en vez de `DateTime(timezone=True)`:
+    SQLite no tiene tipo timestamp-con-zona-horaria; este wrapper garantiza
+    que todo timestamp se guarde y se lea en UTC *aware*, para no romper las
+    comparaciones con `dt.datetime.now(dt.timezone.utc)` que usa el resto
+    del backend (`energy/historical.py`, `assistant/reports.py`, etc.).
+  - `JSON` en vez de `JSONB`: SQLite no tiene JSONB; el tipo generico de
+    SQLAlchemy serializa/deserializa igual en ambos lados, sin que el codigo
+    que ya hacia `.get(...)` sobre estos campos (ver `energy/historical.py`)
+    necesite cambiar.
+  - `DeteccionOcupacion` ya no tiene PK compuesta (id_deteccion, fecha_hora):
+    esa composicion existia solo porque Postgres particionaba la tabla por
+    rango de fecha_hora; sin particionado, un unico id autoincremental basta.
+  - Se quito `ConsumoEnergetico.tiempo_encendida` (columna generada tipo
+    INTERVAL, que SQLite no tiene): se confirmo que ningun router la lee,
+    `energy/vision_bridge.py` calcula la duracion en Python.
 """
 
 from __future__ import annotations
@@ -12,64 +36,47 @@ import datetime as dt
 import uuid
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
-    Computed,
     Date,
-    DateTime,
     Enum,
     ForeignKey,
-    Interval,
     Numeric,
     SmallInteger,
     Text,
-    func,
+    Uuid,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .database import Base
+from .database import Base, UTCDateTime
 
-RolUsuario = Enum(
-    "administrador", "operador", "analista", "visor",
-    name="rol_usuario_enum", create_type=False,
-)
-TipoLuminaria = Enum(
-    "LED", "fluorescente", "sodio", "halogena", "induccion", "otro",
-    name="tipo_luminaria_enum", create_type=False,
-)
-EstadoLuminaria = Enum(
-    "encendida", "apagada", "falla", "mantenimiento",
-    name="estado_luminaria_enum", create_type=False,
-)
-EstadoOcupacion = Enum(
-    "ocupado", "vacio", name="estado_ocupacion_enum", create_type=False,
-)
+_ahora_utc = lambda: dt.datetime.now(dt.timezone.utc)  # noqa: E731 - default reusado en cada tabla
+
+RolUsuario = Enum("administrador", "operador", "analista", "visor", name="rol_usuario_enum")
+TipoLuminaria = Enum("LED", "fluorescente", "sodio", "halogena", "induccion", "otro", name="tipo_luminaria_enum")
+EstadoLuminaria = Enum("encendida", "apagada", "falla", "mantenimiento", name="estado_luminaria_enum")
+EstadoOcupacion = Enum("ocupado", "vacio", name="estado_ocupacion_enum")
 TipoEvento = Enum(
     "encendido", "apagado", "alerta_ocupacion", "alerta_falla",
     "mantenimiento", "conexion", "desconexion", "cambio_configuracion",
-    name="tipo_evento_enum", create_type=False,
+    name="tipo_evento_enum",
 )
-Prioridad = Enum(
-    "baja", "media", "alta", "critica", name="prioridad_enum", create_type=False,
-)
-TipoReporte = Enum(
-    "consumo", "ocupacion", "patrones", "alertas", "general",
-    name="tipo_reporte_enum", create_type=False,
-)
+Prioridad = Enum("baja", "media", "alta", "critica", name="prioridad_enum")
+TipoReporte = Enum("consumo", "ocupacion", "patrones", "alertas", "general", name="tipo_reporte_enum")
 
 
 class Zona(Base):
     __tablename__ = "zonas"
 
-    id_zona: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id_zona: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     edificio: Mapped[str | None] = mapped_column(Text)
     piso: Mapped[str | None] = mapped_column(Text)
     descripcion: Mapped[str | None] = mapped_column(Text)
     tipo_espacio: Mapped[str] = mapped_column(Text, nullable=False, server_default="oficina")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
     luminarias: Mapped[list["Luminaria"]] = relationship(back_populates="zona")
 
@@ -77,29 +84,33 @@ class Zona(Base):
 class Usuario(Base):
     __tablename__ = "usuarios"
 
-    id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id_usuario: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(Text, nullable=False)
     correo: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     contrasena_hash: Mapped[str] = mapped_column(Text, nullable=False)
     rol: Mapped[str] = mapped_column(RolUsuario, nullable=False, server_default="visor")
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-    fecha_registro: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    fecha_registro: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
+    # `onupdate` reemplaza el trigger `trg_usuarios_updated_at` de la version
+    # Postgres: SQLite no tiene funciones PL/pgSQL, asi que esto se resuelve
+    # en el ORM en vez de en la base de datos. Cubre el 100% de los casos
+    # porque ningun router hace UPDATE por SQL crudo, todos pasan por aqui.
+    updated_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc, onupdate=_ahora_utc)
 
 
 class Luminaria(Base):
     __tablename__ = "luminarias"
 
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre: Mapped[str] = mapped_column(Text, nullable=False)
-    id_zona: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("zonas.id_zona"), nullable=False)
+    id_zona: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("zonas.id_zona"), nullable=False)
     tipo: Mapped[str] = mapped_column(TipoLuminaria, nullable=False)
     potencia_w: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
     estado_actual: Mapped[str] = mapped_column(EstadoLuminaria, nullable=False, server_default="apagada")
-    fecha_instalacion: Mapped[dt.date] = mapped_column(Date, server_default=func.current_date())
-    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha_instalacion: Mapped[dt.date] = mapped_column(Date, default=dt.date.today)
+    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
+    updated_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc, onupdate=_ahora_utc)
 
     __table_args__ = (CheckConstraint("potencia_w > 0", name="chk_luminarias_potencia"),)
 
@@ -108,13 +119,17 @@ class Luminaria(Base):
 
 class DeteccionOcupacion(Base):
     """Una fila por cada deteccion de ocupacion; fecha_hora es el instante
-    exacto en que se detecto (o no) una persona en el frame analizado."""
+    exacto en que se detecto (o no) una persona en el frame analizado.
+
+    PK simple (antes compuesta con fecha_hora): esa composicion solo existia
+    para que Postgres pudiera particionar la tabla por rango de fecha; sin
+    particionado, un id autoincremental es suficiente y mas simple."""
 
     __tablename__ = "detecciones_ocupacion"
 
     id_deteccion: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    fecha_hora: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), primary_key=True, server_default=func.now())
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
     personas_detectadas: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
     confianza: Mapped[float | None] = mapped_column(Numeric(5, 4))
     imagen_referencia: Mapped[str | None] = mapped_column(Text)
@@ -125,10 +140,10 @@ class Evento(Base):
     __tablename__ = "eventos"
 
     id_evento: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
     id_deteccion_origen: Mapped[int | None] = mapped_column(BigInteger)
-    fecha_hora_origen: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
-    fecha_hora: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha_hora_origen: Mapped[dt.datetime | None] = mapped_column(UTCDateTime)
+    fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     tipo_evento: Mapped[str] = mapped_column(TipoEvento, nullable=False)
     descripcion: Mapped[str | None] = mapped_column(Text)
 
@@ -143,12 +158,9 @@ class ConsumoEnergetico(Base):
     __tablename__ = "consumo_energetico"
 
     id_consumo: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
-    fecha_hora_inicio: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    fecha_hora_fin: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
-    tiempo_encendida: Mapped[dt.timedelta | None] = mapped_column(
-        Interval, Computed("fecha_hora_fin - fecha_hora_inicio")
-    )
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    fecha_hora_inicio: Mapped[dt.datetime] = mapped_column(UTCDateTime, nullable=False)
+    fecha_hora_fin: Mapped[dt.datetime | None] = mapped_column(UTCDateTime)
     energia_consumida_kwh: Mapped[float | None] = mapped_column(Numeric(10, 4))
 
     __table_args__ = (
@@ -166,8 +178,8 @@ class PatronUso(Base):
 
     __tablename__ = "patrones_uso"
 
-    id_patron: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    id_patron: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
 
 
 class Recomendacion(Base):
@@ -176,14 +188,14 @@ class Recomendacion(Base):
 
     __tablename__ = "recomendaciones"
 
-    id_recomendacion: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    id_luminaria: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
-    id_patron: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("patrones_uso.id_patron"))
-    fecha_hora: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id_recomendacion: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    id_patron: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("patrones_uso.id_patron"))
+    fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     recomendacion: Mapped[str] = mapped_column(Text, nullable=False)
     prioridad: Mapped[str] = mapped_column(Prioridad, nullable=False, server_default="media")
-    aplicada: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    fecha_aplicacion: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    aplicada: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    fecha_aplicacion: Mapped[dt.datetime | None] = mapped_column(UTCDateTime)
 
 
 # =====================================================================
@@ -192,9 +204,9 @@ class Recomendacion(Base):
 #
 # `id_deteccion` en las 4 tablas de abajo es una referencia SUAVE (sin FK, sin
 # constraint) a `detecciones_ocupacion.id_deteccion` — mismo patron que
-# `Evento.id_deteccion_origen` — porque esa tabla esta particionada y de alta
-# frecuencia de escritura; ademas el modulo debe poder generar/persistir un
-# reporte energetico standalone (sin una captura de vision asociada todavia).
+# `Evento.id_deteccion_origen` — porque esa tabla es de alta frecuencia de
+# escritura; ademas el modulo debe poder generar/persistir un reporte
+# energetico standalone (sin una captura de vision asociada todavia).
 # =====================================================================
 
 
@@ -216,7 +228,7 @@ class ConsumoEnergeticoEstimado(Base):
     co2_generado_kg: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     co2_evitable_kg: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     intensidad_energetica_kwh_m2: Mapped[float | None] = mapped_column(Numeric(10, 4))
-    fecha: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
     __table_args__ = (
         CheckConstraint("consumo_estimado_kwh >= 0", name="chk_consumo_estimado_no_negativo"),
@@ -233,11 +245,11 @@ class PrediccionConsumoDB(Base):
     id_prediccion: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     id_deteccion: Mapped[int | None] = mapped_column(BigInteger)
     modelo_utilizado: Mapped[str] = mapped_column(Text, nullable=False, server_default="LightGBM")
-    variables_entrada: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    variables_entrada: Mapped[dict] = mapped_column(JSON, nullable=False)
     prediccion_kwh: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     tiempo_inferencia_ms: Mapped[float | None] = mapped_column(Numeric(10, 4))
     confianza: Mapped[float | None] = mapped_column(Numeric(5, 4))
-    fecha: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
 
 class RecomendacionEnergetica(Base):
@@ -248,7 +260,7 @@ class RecomendacionEnergetica(Base):
     __tablename__ = "recomendaciones_energeticas"
 
     id_recomendacion_energetica: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     id_deteccion: Mapped[int | None] = mapped_column(BigInteger)
     tipo_recomendacion: Mapped[str] = mapped_column(Text, nullable=False)
@@ -256,13 +268,13 @@ class RecomendacionEnergetica(Base):
     ahorro_estimado_kwh: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     ahorro_porcentaje: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
     co2_estimado_kg: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
-    aplicada: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    fecha: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    aplicada: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    fecha: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
 
 class Simulacion(Base):
     """Una corrida del motor de simulacion (`energy/simulations.py`): guarda
-    el escenario original y el simulado completos (JSONB) para poder
+    el escenario original y el simulado completos (JSON) para poder
     reconstruir/auditar el calculo despues."""
 
     __tablename__ = "simulaciones"
@@ -270,13 +282,13 @@ class Simulacion(Base):
     id_simulacion: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     id_deteccion: Mapped[int | None] = mapped_column(BigInteger)
     tipo_simulacion: Mapped[str] = mapped_column(Text, nullable=False)
-    escenario_original: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    escenario_simulado: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    escenario_original: Mapped[dict] = mapped_column(JSON, nullable=False)
+    escenario_simulado: Mapped[dict] = mapped_column(JSON, nullable=False)
     consumo_original_kwh: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     consumo_simulado_kwh: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     ahorro_kwh: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     ahorro_porcentaje: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
-    fecha: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
 
 # =====================================================================
@@ -293,11 +305,11 @@ class Consulta(Base):
 
     __tablename__ = "consultas"
 
-    id_consulta: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario", ondelete="CASCADE"), nullable=False)
+    id_consulta: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_usuario: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("usuarios.id_usuario", ondelete="CASCADE"), nullable=False)
     pregunta: Mapped[str] = mapped_column(Text, nullable=False)
     respuesta: Mapped[str | None] = mapped_column(Text)
-    fecha_hora: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     tiempo_respuesta: Mapped[float | None] = mapped_column(Numeric(8, 3))
 
     __table_args__ = (CheckConstraint("tiempo_respuesta >= 0", name="chk_consultas_tiempo_respuesta"),)
@@ -309,9 +321,9 @@ class Reporte(Base):
 
     __tablename__ = "reportes"
 
-    id_reporte: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario", ondelete="RESTRICT"), nullable=False)
-    fecha_generacion: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id_reporte: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_usuario: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("usuarios.id_usuario", ondelete="RESTRICT"), nullable=False)
+    fecha_generacion: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     tipo_reporte: Mapped[str] = mapped_column(TipoReporte, nullable=False)
     clave_reporte: Mapped[str | None] = mapped_column(Text)
     periodo: Mapped[str] = mapped_column(Text, nullable=False)

@@ -6,11 +6,12 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import BotonSonido from "../components/BotonSonido.jsx";
 import Cifra from "../components/Cifra.jsx";
 import Marca from "../components/Marca.jsx";
+import PuntoMonitoreo from "../components/PuntoMonitoreo.jsx";
 import Habitacion from "../components/landing/Habitacion.jsx";
 import { useLight } from "../light/LightContext.jsx";
 import { sonido } from "../lib/sound.js";
@@ -21,12 +22,15 @@ const CONSUMO_T = [0, 0.42, 0.5, 0.66, 0.74, 0.9, 1];
 const CONSUMO_W = [318, 318, 206, 206, 84, 84, 128];
 const PICO = 318;
 
-/** Anotaciones sobre el plano. Cuatro frases en toda la landing. */
+/* Anotaciones sobre el plano. Cuatro frases en toda la landing.
+   SELENE no acciona interruptores: observa, calcula y avisa. El texto
+   dice exactamente eso, porque prometer control de hardware seria
+   vender algo que la herramienta no hace.                            */
 const NOTAS = [
   { desde: 0.16, hasta: 0.36, x: "56%", y: "8%", texto: "Encuentra las ventanas y mide la luz que ya entra." },
-  { desde: 0.4, hasta: 0.58, x: "8%", y: "16%", texto: "Apaga lo que el sol está haciendo gratis." },
-  { desde: 0.62, hasta: 0.8, x: "14%", y: "62%", texto: "La sala se vacía. La luz también se va." },
-  { desde: 0.84, hasta: 1, x: "48%", y: "26%", texto: "74 % menos de energía. Nadie tocó un interruptor." },
+  { desde: 0.4, hasta: 0.58, x: "8%", y: "16%", texto: "Calcula qué luminarias sobran mientras entra el sol." },
+  { desde: 0.62, hasta: 0.8, x: "14%", y: "62%", texto: "Sala vacía con luces encendidas: alerta al instante." },
+  { desde: 0.84, hasta: 1, x: "48%", y: "26%", texto: "74 % menos de energía atendiendo sus alertas de control." },
 ];
 
 function Nota({ t, nota }) {
@@ -66,6 +70,46 @@ function Particula({ t, indice, total }) {
   );
 }
 
+/**
+ * La alerta de control: el producto real. No apaga la luz, emite el aviso
+ * y la recomendacion. Entra como una hoja de papel, con su sonido.
+ */
+function Alerta({ t }) {
+  const opacidad = useTransform(t, [0.6, 0.65, 0.82, 0.88], [0, 1, 1, 0]);
+  const x = useTransform(t, [0.6, 0.68], [28, 0]);
+  const yaSono = useRef(false);
+
+  useMotionValueEvent(t, "change", (v) => {
+    if (v > 0.63 && !yaSono.current) {
+      yaSono.current = true;
+      sonido.aviso();
+      sonido.papel();
+    }
+    if (v < 0.5) yaSono.current = false; // rearma para el siguiente ciclo
+  });
+
+  return (
+    <motion.aside
+      style={{ opacity: opacidad, x }}
+      className="surface pointer-events-none absolute right-8 top-24 z-20 w-[302px] overflow-hidden p-5"
+    >
+      <span className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-amber-hot to-amber-soft" />
+      <div className="flex items-center justify-between">
+        <p className="annot text-amber-hot">alerta de control</p>
+        <p className="mono text-[10px] tabular-nums text-ink-3">12:47</p>
+      </div>
+      <p className="serif mt-3 text-[1.32rem] leading-tight">
+        Sala vacía con <em>3 luminarias</em> encendidas.
+      </p>
+      <p className="mono mt-3 text-[11px] text-ink-2">42 W desperdiciados · 0 personas detectadas</p>
+      <p className="mt-4 border-t border-linen pt-3 font-mono text-[11px] leading-relaxed text-ink-2">
+        <span className="text-leaf">recomendación</span> · apagar zona escritorio hasta que se
+        registre ocupación
+      </p>
+    </motion.aside>
+  );
+}
+
 /** Reloj de la escena: el scroll es tiempo, y hay que decirlo. */
 function Reloj({ t }) {
   const ref = useRef(null);
@@ -82,7 +126,6 @@ export default function LandingPage({ encendida = true }) {
   const contenedor = useRef(null);
   const navegar = useNavigate();
   const { iluminar } = useLight();
-  const [hover, setHover] = useState(false);
 
   const { scrollYProgress } = useScroll({
     target: contenedor,
@@ -161,7 +204,12 @@ export default function LandingPage({ encendida = true }) {
         className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-8 py-6"
       >
         <Marca className="text-ink" />
-        <BotonSonido />
+        {/* La cámara vive siempre en pantalla: se puede entrar a la
+            herramienta en cualquier momento de la narracion. */}
+        <div className="flex items-center gap-5">
+          <PuntoMonitoreo tamano={40} etiqueta="iniciar monitoreo" />
+          <BotonSonido />
+        </div>
       </motion.header>
 
       {/* ------------------ ACTO ÚNICO: LA HABITACIÓN ------------------ */}
@@ -175,9 +223,12 @@ export default function LandingPage({ encendida = true }) {
             ))}
           </div>
 
+          <Alerta t={t} />
+
           {/* ---------- Instrumentos: viven en el margen, en tinta ---------- */}
           <div className="pointer-events-none absolute bottom-8 left-8 flex flex-col gap-6">
             <div>
+              <p className="annot mb-1 text-ink-4">simulación · escenario recomendado</p>
               <p className="annot mb-2">consumo de la sala</p>
               <p className="flex items-baseline gap-2">
                 <Cifra valor={consumo} className="text-[clamp(2.2rem,4.4vw,3.4rem)] leading-none tracking-tight" />
@@ -253,36 +304,26 @@ export default function LandingPage({ encendida = true }) {
           <em className="block text-ink-2"> La tuya entra por la cámara.</em>
         </motion.p>
 
-        {/* Toda la luz de la pagina se contrae en un solo punto: el acceso. */}
-        <motion.button
-          onClick={entrar}
-          onHoverStart={() => {
-            setHover(true);
-            sonido.roce();
-          }}
-          onHoverEnd={() => setHover(false)}
-          className="group relative flex h-16 items-center justify-center rounded-full outline-none"
-          animate={{ width: hover ? 236 : 64 }}
-          transition={{ type: "spring", stiffness: 260, damping: 26 }}
+        {/* El cierre no es un boton: es el objetivo de la camara abriendose. */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, margin: "-15%" }}
+          transition={{ duration: 0.9, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className="flex flex-col items-center gap-9"
         >
-          <motion.span
-            className="absolute inset-0 rounded-full"
-            animate={{
-              backgroundColor: hover ? "#191512" : "#ffb020",
-              boxShadow: hover
-                ? "0 18px 50px -16px rgba(25,21,18,0.5)"
-                : "0 0 34px 6px rgba(255,176,32,0.55), 0 0 90px 20px rgba(255,176,32,0.18)",
+          <PuntoMonitoreo tamano={116} etiqueta="empezar el monitoreo" grande />
+
+          <button
+            onClick={() => {
+              sonido.roce();
+              navegar("/acceso");
             }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          />
-          <motion.span
-            animate={{ opacity: hover ? 1 : 0 }}
-            transition={{ duration: 0.25, delay: hover ? 0.12 : 0 }}
-            className="relative z-10 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.42em] text-paper"
+            className="annot border-b border-transparent pb-1 transition-colors duration-300 hover:border-ink-4 hover:text-ink"
           >
-            entrar a selene
-          </motion.span>
-        </motion.button>
+            ya tengo cuenta · acceder
+          </button>
+        </motion.div>
 
         <footer className="absolute bottom-8 flex w-full max-w-5xl items-center justify-between px-2">
           <p className="annot">tesis · ingeniería de sistemas</p>

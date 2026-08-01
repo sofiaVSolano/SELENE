@@ -104,6 +104,15 @@ def analizar_frame(
         id_deteccion=deteccion_id,
         consumo_estimado_kwh=consumo_estimado_kwh,
         ahorro_estimado_kwh=ahorro_estimado_kwh,
+        num_ventanas=resultado["num_ventanas"],
+        num_luminarias=resultado["num_luminarias"],
+        area_ventanas_relativa=resultado["area_ventanas_relativa"],
+        area_luminarias_relativa=resultado["area_luminarias_relativa"],
+        brillo_ventanas=resultado["brillo_ventanas"],
+        brillo_luminarias=resultado["brillo_luminarias"],
+        natural_score=resultado["natural_score"],
+        artificial_score=resultado["artificial_score"],
+        confianza_max_persona=resultado["confianza_max_persona"] or 0.0,
     )
 
 

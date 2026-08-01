@@ -24,15 +24,21 @@ export default function Linterna({ onEncender }) {
   const encontradoRef = useRef(0);
   const posRef = useRef({ x: 0.5, y: 0.5 });
 
-  const mx = useSpring(useMotionValue(-999), { stiffness: 420, damping: 34, mass: 0.35 });
-  const my = useSpring(useMotionValue(-999), { stiffness: 420, damping: 34, mass: 0.35 });
+  /* El haz se posiciona con `transform`, no con left/top: animar left/top
+     obliga al navegador a recalcular layout en cada frame y ese es el
+     retraso que se veia. Ademas el muelle es casi critico (rigidez alta,
+     masa minima): una linterna sigue a la mano, no la persigue.        */
+  const mx = useMotionValue(-9999);
+  const my = useMotionValue(-9999);
+  const hazX = useSpring(mx, { stiffness: 1400, damping: 62, mass: 0.1 });
+  const hazY = useSpring(my, { stiffness: 1400, damping: 62, mass: 0.1 });
 
   useEffect(() => {
     const mover = (e) => {
       const px = e.touches ? e.touches[0].clientX : e.clientX;
       const py = e.touches ? e.touches[0].clientY : e.clientY;
-      mx.set(px);
-      my.set(py);
+      mx.set(px - RADIO_HAZ);
+      my.set(py - RADIO_HAZ);
       posRef.current = { x: px / window.innerWidth, y: py / window.innerHeight };
     };
     window.addEventListener("mousemove", mover);
@@ -66,8 +72,8 @@ export default function Linterna({ onEncender }) {
       {/* Haz de la linterna */}
       <motion.div
         aria-hidden
-        style={{ left: mx, top: my }}
-        className="pointer-events-none fixed z-20 -translate-x-1/2 -translate-y-1/2"
+        style={{ x: hazX, y: hazY }}
+        className="pointer-events-none fixed left-0 top-0 z-20 will-change-transform"
       >
         <div
           className="rounded-full"

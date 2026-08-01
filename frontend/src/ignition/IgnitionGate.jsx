@@ -7,15 +7,16 @@ import Bombillo from "./variantes/Bombillo.jsx";
 import Fosforo from "./variantes/Fosforo.jsx";
 import Interruptor from "./variantes/Interruptor.jsx";
 import Lampara from "./variantes/Lampara.jsx";
-import Linterna from "./variantes/Linterna.jsx";
 import Sensor from "./variantes/Sensor.jsx";
 
+// La linterna salió de la rotación: quedó fuera de esta lista a propósito.
+// El archivo (`variantes/Linterna.jsx`) sigue en el repo sin usarse por si
+// se retoma, no se borró sin que lo pidan explícitamente.
 const MECANISMOS = [
   { id: "bombillo", nombre: "bombillo", Componente: Bombillo },
   { id: "interruptor", nombre: "interruptor", Componente: Interruptor },
   { id: "fosforo", nombre: "fósforo", Componente: Fosforo },
   { id: "sensor", nombre: "sensor pir", Componente: Sensor },
-  { id: "linterna", nombre: "linterna", Componente: Linterna },
   { id: "lampara", nombre: "lámpara", Componente: Lampara },
 ];
 
@@ -27,6 +28,12 @@ const KEY_ULTIMO = "selene_ultimo_mecanismo";
  * seguidas delante del jurado, ven tres mecanismos distintos garantizados.
  */
 function elegirMecanismo() {
+  // ?mecanismo=interruptor fuerza uno concreto: sirve para iterar sobre
+  // una variante sin depender del azar, y para fijarlo en una demo.
+  const forzado = new URLSearchParams(window.location.search).get("mecanismo");
+  const fijo = MECANISMOS.find((m) => m.id === forzado);
+  if (fijo) return fijo;
+
   const ultimo = typeof localStorage !== "undefined" ? localStorage.getItem(KEY_ULTIMO) : null;
   const candidatos = MECANISMOS.filter((m) => m.id !== ultimo);
   const elegido = candidatos[Math.floor(Math.random() * candidatos.length)];
@@ -122,7 +129,7 @@ export default function IgnitionGate({ onCompleto }) {
 
       {/* Firma del mecanismo. Deja claro que hay mas de uno. */}
       <div className="absolute left-8 top-8 z-20 font-mono text-[10px] uppercase tracking-[0.34em] text-white/25">
-        selene · mecanismo {String(indice).padStart(2, "0")} / 06
+        selene · mecanismo {String(indice).padStart(2, "0")} / {String(MECANISMOS.length).padStart(2, "0")}
         <span className="ml-3 text-white/40">{nombre}</span>
       </div>
 

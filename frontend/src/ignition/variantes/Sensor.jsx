@@ -19,15 +19,19 @@ export default function Sensor({ onEncender }) {
   const cargaRef = useRef(0);
   const cursor = useRef({ x: 0.5, y: 0.5 });
 
-  const mx = useSpring(useMotionValue(0), { stiffness: 180, damping: 26, mass: 0.6 });
-  const my = useSpring(useMotionValue(0), { stiffness: 180, damping: 26, mass: 0.6 });
+  /* Aqui el retraso SI es deliberado (un PIR reacciona con inercia), pero
+     va por transform igual que la linterna: nunca por left/top. */
+  const mx = useMotionValue(-9999);
+  const my = useMotionValue(-9999);
+  const luzX = useSpring(mx, { stiffness: 340, damping: 30, mass: 0.45 });
+  const luzY = useSpring(my, { stiffness: 340, damping: 30, mass: 0.45 });
 
   useEffect(() => {
     const mover = (e) => {
       const px = e.touches ? e.touches[0].clientX : e.clientX;
       const py = e.touches ? e.touches[0].clientY : e.clientY;
-      mx.set(px);
-      my.set(py);
+      mx.set(px - 210);
+      my.set(py - 210);
       cursor.current = { x: px / window.innerWidth, y: py / window.innerHeight };
 
       if (previo.current && !detectado) {
@@ -71,8 +75,8 @@ export default function Sensor({ onEncender }) {
       {/* La luz persigue al cursor por toda la pantalla */}
       <motion.div
         aria-hidden
-        style={{ left: mx, top: my, opacity: 0.14 + p * 0.5, scale: 0.7 + p * 0.9 }}
-        className="pointer-events-none fixed z-0 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,196,107,0.55)_0%,transparent_66%)] blur-2xl"
+        style={{ x: luzX, y: luzY, opacity: 0.14 + p * 0.5, scale: 0.7 + p * 0.9 }}
+        className="pointer-events-none fixed left-0 top-0 z-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(255,196,107,0.55)_0%,transparent_66%)] blur-2xl will-change-transform"
       />
 
       <div className="relative z-10 flex h-[240px] w-[240px] items-center justify-center">

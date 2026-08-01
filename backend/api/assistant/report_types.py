@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal, TypedDict
 
-ClaveReporte = Literal["consumo_diario", "consumo_mensual", "plan_ahorro", "general"]
+ClaveReporte = Literal["consumo_diario", "consumo_mensual", "plan_ahorro", "general", "detallado"]
 
 
 class DefinicionTipoReporte(TypedDict):
@@ -38,6 +38,15 @@ TIPOS_REPORTE: dict[ClaveReporte, DefinicionTipoReporte] = {
     "general": {
         "etiqueta": "Resumen de la conversacion",
         "descripcion_para_llm": "Resumen general de la conversacion; usar si no aplica ninguno de los otros tipos, o como complemento.",
+        "tipo_reporte_enum": "general",
+    },
+    "detallado": {
+        "etiqueta": "Reporte detallado a tu medida",
+        "descripcion_para_llm": (
+            "El usuario pidio un reporte detallado, extenso o personalizado, o especifico exactamente "
+            "que temas, zonas o periodos quiere que se cubran en profundidad -- a diferencia de los "
+            "otros tipos (plantillas fijas), este lo redacta el LLM a la medida de lo que se pidio."
+        ),
         "tipo_reporte_enum": "general",
     },
 }

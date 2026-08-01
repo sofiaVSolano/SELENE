@@ -104,6 +104,21 @@ class FrameAnalysisResponse(BaseModel):
     )
     ahorro_estimado_kwh: float | None = Field(default=None, description="Ahorro potencial estimado para ese mismo tramo, segun la mejor simulacion aplicable.")
 
+    # --- Metricas que `lightingAnalyzer` ya calcula por frame -------------------
+    # Estaban disponibles en `detection_service.analyze_frame()` pero solo se
+    # usaban internamente para armar el EscenarioVision del modulo energetico.
+    # Se exponen aqui (todos opcionales, cambio aditivo) porque el Centro de
+    # Monitoreo las muestra por elemento: area ocupada, intensidad y scores.
+    num_ventanas: int = 0
+    num_luminarias: int = 0
+    area_ventanas_relativa: float = Field(default=0.0, ge=0, le=1, description="Fraccion del frame ocupada por ventanas (0-1).")
+    area_luminarias_relativa: float = Field(default=0.0, ge=0, le=1, description="Fraccion del frame ocupada por luminarias (0-1).")
+    brillo_ventanas: float = Field(default=0.0, ge=0, le=255, description="Brillo medio (canal V) de las ventanas detectadas.")
+    brillo_luminarias: float = Field(default=0.0, ge=0, le=255, description="Brillo medio (canal V) de las luminarias detectadas.")
+    natural_score: float = Field(default=0.0, ge=0, le=1)
+    artificial_score: float = Field(default=0.0, ge=0, le=1)
+    confianza_max_persona: float = Field(default=0.0, ge=0, le=1)
+
 
 # --- Alertas / recomendaciones ------------------------------------------------
 

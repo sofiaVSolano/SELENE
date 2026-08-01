@@ -4,6 +4,8 @@ import { sonido } from "../../lib/sound.js";
 import { Pista, TrazoGesto, origenDesde } from "../piezas.jsx";
 
 const FRICCION_NECESARIA = 620; // px acumulados de raspado
+const INICIO = 16; // borde interior izquierdo de la caja
+const RECORRIDO = 118; // hasta el extremo derecho de la lija
 
 /**
  * VARIANTE 3 · FOSFORO
@@ -41,8 +43,12 @@ export default function Fosforo({ onEncender }) {
     // Chispas proporcionales a la velocidad del gesto
     const cuantas = Math.min(4, Math.round(fuerza / 4));
     if (!cuantas) return;
+    // Las chispas nacen en la cabeza, alla donde este: se calcula su
+    // posicion al vuelo en vez de anclarlas al centro de la caja.
+    const izquierdaCabeza = INICIO + 9.5 + x.get();
     const nuevas = Array.from({ length: cuantas }, () => ({
       id: (idChispa.current += 1),
+      izquierda: izquierdaCabeza,
       dx: (Math.random() - 0.5) * 130 - delta * 2.2,
       dy: -Math.random() * 110 - 18,
       escala: 0.35 + Math.random() * 0.8,
@@ -88,12 +94,12 @@ export default function Fosforo({ onEncender }) {
           {/* Fosforo arrastrable */}
           <motion.div
             drag="x"
-            dragConstraints={{ left: -96, right: 96 }}
-            dragElastic={0.14}
+            dragConstraints={{ left: 0, right: RECORRIDO }}
+            dragElastic={0.12}
             dragMomentum={false}
-            style={{ x }}
+            style={{ x, left: INICIO }}
             onDrag={(_, info) => cargar(info.delta.x)}
-            className="absolute bottom-[52px] left-1/2 z-10 flex -translate-x-1/2 cursor-grab items-center active:cursor-grabbing"
+            className="absolute bottom-[52px] z-10 flex cursor-grab items-center active:cursor-grabbing"
             whileTap={{ scale: 0.99 }}
           >
             {/* Cabeza */}
@@ -145,12 +151,12 @@ export default function Fosforo({ onEncender }) {
               {chispas.map((c) => (
                 <motion.span
                   key={c.id}
-                  className="absolute bottom-[58px] left-1/2 block h-[2.5px] w-[2.5px] rounded-full bg-[#ffcf80]"
+                  className="absolute bottom-[60px] block h-[2.5px] w-[2.5px] rounded-full bg-[#ffcf80]"
                   initial={{ opacity: 1, x: 0, y: 0, scale: c.escala }}
                   animate={{ opacity: 0, x: c.dx, y: [0, c.dy, c.dy + 90], scale: 0.2 }}
                   transition={{ duration: c.vida, ease: "easeOut" }}
                   onAnimationComplete={() => setChispas((prev) => prev.filter((s) => s.id !== c.id))}
-                  style={{ boxShadow: "0 0 6px 1px rgba(255,180,80,0.9)" }}
+                  style={{ left: c.izquierda, boxShadow: "0 0 6px 1px rgba(255,180,80,0.9)" }}
                 />
               ))}
             </AnimatePresence>

@@ -22,6 +22,8 @@ from ..assistant.schemas import (
     ConsultaHistorialItem,
     GenerarReporteRequest,
     PreguntaAudioResponse,
+    PreguntaTextoRequest,
+    PreguntaTextoResponse,
     ReporteOut,
     TipoReporteSugerido,
 )
@@ -52,6 +54,24 @@ async def preguntar(
             contenido,
             filename=audio.filename or "audio.webm",
             content_type=audio.content_type or "audio/webm",
+        )
+    except AssistantConfigError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/preguntar-texto", response_model=PreguntaTextoResponse)
+def preguntar_texto(
+    payload: PreguntaTextoRequest,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(get_current_user),
+) -> PreguntaTextoResponse:
+    """Turno de conversacion escrito. Comparte contexto, historial y tabla
+    `consultas` con `/preguntar` (voz): son la misma conversacion."""
+    try:
+        return service.procesar_pregunta_texto(
+            db, usuario.id_usuario, payload.pregunta, con_voz=payload.con_voz
         )
     except AssistantConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -108,10 +128,20 @@ def generar_reporte(
 ) -> ReporteOut:
     try:
         reporte = reports.generar_reporte(
-            db, usuario, clave_reporte=payload.clave_reporte, limite_consultas=payload.limite_consultas, titulo=payload.titulo
+            db,
+            usuario,
+            clave_reporte=payload.clave_reporte,
+            limite_consultas=payload.limite_consultas,
+            titulo=payload.titulo,
+            instrucciones=payload.instrucciones,
         )
     except AssistantConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except ValueError as exc:
+        # El LLM no devolvio un reporte "detallado" con formato valido (ver
+        # `openai_client.generar_reporte_detallado`); un reintento suele
+        # bastar, así que se lo dice al frontend en vez de una excepcion 500.
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return _a_reporte_out(request, reporte)
 
 
@@ -148,3 +178,15 @@ def descargar_reporte(
     # Reportes generados antes de este cambio son .md; los nuevos son .pdf.
     media_type, _ = mimetypes.guess_type(ruta.name)
     return FileResponse(ruta, filename=ruta.name, media_type=media_type or "application/pdf")
+
+
+@router.delete("/reporte/{id_reporte}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_reporte(
+    id_reporte: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(get_current_user),
+) -> None:
+    try:
+        reports.eliminar_reporte(db, usuario, id_reporte)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
