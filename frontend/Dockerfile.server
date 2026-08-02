@@ -1,0 +1,26 @@
+# Imagen de PRODUCCION: build estatico de Vite servido por nginx (a diferencia
+# de frontend/Dockerfile, que es el dev server con hot-reload para uso local).
+# Ver docker-compose.server.yml.
+
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm install
+
+COPY . .
+
+# VITE_API_URL se hornea DENTRO del bundle en build time (Vite reemplaza
+# import.meta.env.VITE_API_URL en el codigo compilado): no hay forma de
+# cambiarlo despues sin reconstruir esta imagen.
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

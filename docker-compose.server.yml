@@ -1,0 +1,59 @@
+# Deploy de PRODUCCION de SELENE en el VM (backend en un puerto, frontend
+# compilado estatico + nginx en otro). A diferencia de docker-compose.yml
+# (dev local: Vite dev server + hot-reload), aca el frontend es un build
+# fijo -- ver frontend/Dockerfile.server.
+#
+#   docker compose -f docker-compose.server.yml up -d --build
+#
+# Variables (todas con default, sobreescribibles con un .env en la raiz o
+# `VAR=valor docker compose ...`):
+#   SERVER_HOST         IP o dominio publico del VM. Default: 104.225.223.220
+#   BACKEND_PORT         Puerto publico del backend. Default: 9023
+#   FRONTEND_PORT         Puerto publico del frontend. Default: 3033
+#   ENERGY_MODEL_HOST_DIR  Carpeta en el VM con ProyectoPrediccionEnergetica
+#                          (predict.py, src/, checkpoints/, modelosEntrenados/,
+#                          configs/ -- NO hace falta datasetsProcesados/,
+#                          notebooks/, .venv/, etc.). Default: ./energy_model
+#
+# IMPORTANTE -- estas carpetas NO viajan con `git clone` porque estan en
+# .gitignore (pesos pesados / datos locales). Hay que copiarlas a mano al VM
+# antes de levantar:
+#   backend/weights/lighting/FasterRCNN_ADE20KOnly_best.pth
+#   backend/weights/person/FasterRCNN_COCO.pth
+#   backend/weights/person/RTDETR_COCO.pt
+#   backend/.env (secretos reales -- ver backend/.env.server.example)
+#   energy_model/ (o la carpeta que apunte ENERGY_MODEL_HOST_DIR)
+# Ver README / instrucciones de deploy para el detalle de como copiarlas.
+
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: sqlite:////app/data/selene.db
+      CORS_ORIGINS: '["http://${SERVER_HOST:-104.225.223.220}:${FRONTEND_PORT:-3033}"]'
+      ENERGY_MODEL_DIR: /energy_model
+    volumes:
+      - ${ENERGY_MODEL_HOST_DIR:-./energy_model}:/energy_model:ro
+      - ./backend/database/data:/app/data
+      - selene_reports:/app/reports/asistente
+    ports:
+      - "${BACKEND_PORT:-9023}:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.server
+      args:
+        VITE_API_URL: http://${SERVER_HOST:-104.225.223.220}:${BACKEND_PORT:-9023}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3033}:80"
+    depends_on:
+      - backend
+
+volumes:
+  selene_reports:
