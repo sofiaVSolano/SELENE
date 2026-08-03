@@ -91,7 +91,7 @@ function Alerta({ t }) {
   return (
     <motion.aside
       style={{ opacity: opacidad, x }}
-      className="surface pointer-events-none absolute right-8 top-24 z-20 w-[302px] overflow-hidden p-5"
+      className="surface pointer-events-none absolute right-3 top-20 z-20 w-[min(78vw,302px)] overflow-hidden p-4 sm:right-8 sm:top-24 sm:p-5"
     >
       <span className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-amber-hot to-amber-soft" />
       <div className="flex items-center justify-between">
@@ -201,12 +201,12 @@ export default function LandingPage({ encendida = true }) {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: encendida ? 1 : 0, y: encendida ? 0 : -12 }}
         transition={{ delay: 0.5, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-8 py-6"
+        className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-4 py-4 sm:px-8 sm:py-6"
       >
         <Marca className="text-ink" />
         {/* La cámara vive siempre en pantalla: se puede entrar a la
             herramienta en cualquier momento de la narracion. */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 sm:gap-5">
           <PuntoMonitoreo tamano={40} etiqueta="iniciar monitoreo" />
           <BotonSonido />
         </div>
@@ -214,7 +214,11 @@ export default function LandingPage({ encendida = true }) {
 
       {/* ------------------ ACTO ÚNICO: LA HABITACIÓN ------------------ */}
       <section ref={contenedor} className="relative h-[460vh]">
-        <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden">
+        {/* `svh` y no `vh`/`dvh`: la escena se dibuja contra el scroll, asi que
+            una altura que cambie al esconderse la barra del navegador movil la
+            recolocaria a mitad de animacion. `svh` es la unica que no se mueve
+            y ademas garantiza que la habitacion entra con la barra visible. */}
+        <div className="sticky top-0 flex h-[100svh] items-center justify-center overflow-hidden">
           <div className="relative h-[min(74vh,700px)] w-[min(92vw,1180px)]">
             <Habitacion t={t} />
 
@@ -225,74 +229,83 @@ export default function LandingPage({ encendida = true }) {
 
           <Alerta t={t} />
 
-          {/* ---------- Instrumentos: viven en el margen, en tinta ---------- */}
-          <div className="pointer-events-none absolute bottom-8 left-8 flex flex-col gap-6">
-            <div>
-              <p className="annot mb-1 text-ink-4">simulación · escenario recomendado</p>
-              <p className="annot mb-2">consumo de la sala</p>
-              <p className="flex items-baseline gap-2">
-                <Cifra valor={consumo} className="text-[clamp(2.2rem,4.4vw,3.4rem)] leading-none tracking-tight" />
-                <span className="mono text-sm text-ink-3">W</span>
-              </p>
-              <div className="mt-3 h-[3px] w-56 overflow-hidden rounded-full bg-linen">
-                <motion.div
-                  style={{ width: anchoBarra }}
-                  className="h-full rounded-full bg-gradient-to-r from-amber-hot to-amber-soft"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-10">
+          {/* ---------- Instrumentos: viven en el margen, en tinta ----------
+              En un telefono no hay dos margenes opuestos que valgan: el bloque
+              de consumo, la hora y la pista de scroll se pisaban en la misma
+              esquina. Por debajo de `sm` los instrumentos se agrupan en una
+              sola tira al pie; el envoltorio desaparece (`sm:contents`) en
+              cuanto hay ancho, y cada uno vuelve a su margen. */}
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end justify-between gap-4 sm:contents">
+            <div className="pointer-events-none flex flex-col gap-4 sm:absolute sm:bottom-8 sm:left-8 sm:gap-6">
               <div>
-                <p className="annot mb-1">ahorro</p>
-                <p className="flex items-baseline gap-1">
-                  <Cifra valor={ahorro} className="text-2xl text-leaf" />
-                  <span className="mono text-xs text-leaf/70">%</span>
+                <p className="annot mb-1 hidden text-ink-4 sm:block">simulación · escenario recomendado</p>
+                <p className="annot mb-2">consumo de la sala</p>
+                <p className="flex items-baseline gap-2">
+                  <Cifra valor={consumo} className="text-[clamp(1.8rem,4.4vw,3.4rem)] leading-none tracking-tight" />
+                  <span className="mono text-sm text-ink-3">W</span>
                 </p>
+                <div className="mt-3 h-[3px] w-32 overflow-hidden rounded-full bg-linen sm:w-56">
+                  <motion.div
+                    style={{ width: anchoBarra }}
+                    className="h-full rounded-full bg-gradient-to-r from-amber-hot to-amber-soft"
+                  />
+                </div>
               </div>
-              <div>
-                <p className="annot mb-1">ocupación</p>
-                <div className="flex h-6 items-center gap-1.5">
-                  <motion.span style={{ opacity: ocupacion }} className="block h-2.5 w-2.5 rounded-full bg-leaf" />
-                  <motion.span style={{ opacity: vacia }} className="mono text-xs text-ink-3">
-                    sala vacía
-                  </motion.span>
+
+              <div className="flex gap-5 sm:gap-10">
+                <div>
+                  <p className="annot mb-1">ahorro</p>
+                  <p className="flex items-baseline gap-1">
+                    <Cifra valor={ahorro} className="text-2xl text-leaf" />
+                    <span className="mono text-xs text-leaf/70">%</span>
+                  </p>
+                </div>
+                <div>
+                  <p className="annot mb-1">ocupación</p>
+                  <div className="flex h-6 items-center gap-1.5">
+                    <motion.span style={{ opacity: ocupacion }} className="block h-2.5 w-2.5 rounded-full bg-leaf" />
+                    <motion.span style={{ opacity: vacia }} className="mono text-xs text-ink-3">
+                      sala vacía
+                    </motion.span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* CO2 y hora, al otro margen */}
-          <div className="pointer-events-none absolute bottom-8 right-8 text-right">
-            <p className="annot mb-2">co₂ evitado</p>
-            <div className="relative mb-4 ml-auto h-16 w-40">
-              {Array.from({ length: 27 }).map((_, i) => (
-                <Particula key={i} t={t} indice={i} total={27} />
-              ))}
+            {/* CO2 y hora, al otro margen */}
+            <div className="pointer-events-none shrink-0 text-right sm:absolute sm:bottom-8 sm:right-8">
+              <p className="annot mb-2 hidden sm:block">co₂ evitado</p>
+              <div className="relative mb-4 ml-auto hidden h-16 w-40 sm:block">
+                {Array.from({ length: 27 }).map((_, i) => (
+                  <Particula key={i} t={t} indice={i} total={27} />
+                ))}
+              </div>
+              <p className="annot mb-1">hora</p>
+              <p className="text-2xl">
+                <Reloj t={t} />
+              </p>
             </div>
-            <p className="annot mb-1">hora</p>
-            <p className="text-2xl">
-              <Reloj t={t} />
-            </p>
           </div>
 
-          {/* Pista de scroll: desaparece al primer movimiento */}
+          {/* Pista de scroll: desaparece al primer movimiento. En movil sube
+              por encima de la tira de instrumentos y suelta la linea vertical,
+              que abajo no tiene sitio. */}
           <motion.div
             style={{ opacity: pistaScroll }}
-            className="pointer-events-none absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3"
+            className="pointer-events-none absolute bottom-40 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3 sm:bottom-10"
           >
             <span className="annot">desliza · mueve el sol</span>
             <motion.span
               animate={{ scaleY: [0.2, 1, 0.2] }}
               transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-              className="block h-10 w-px origin-top bg-gradient-to-b from-ink-4 to-transparent"
+              className="hidden h-10 w-px origin-top bg-gradient-to-b from-ink-4 to-transparent sm:block"
             />
           </motion.div>
         </div>
       </section>
 
       {/* ------------------ CIERRE: EL PUNTO DE ACCESO ------------------ */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center gap-16 px-8">
+      <section className="relative flex min-h-screen flex-col items-center justify-center gap-10 px-6 sm:gap-16 sm:px-8">
         <motion.p
           initial={{ opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -325,7 +338,7 @@ export default function LandingPage({ encendida = true }) {
           </button>
         </motion.div>
 
-        <footer className="absolute bottom-8 flex w-full max-w-5xl items-center justify-between px-2">
+        <footer className="absolute bottom-6 flex w-full max-w-5xl flex-col items-center gap-1.5 px-4 text-center sm:bottom-8 sm:flex-row sm:justify-between sm:gap-0 sm:text-left">
           <p className="annot">tesis · ingeniería de sistemas</p>
           <p className="annot">visión artificial · eficiencia energética</p>
         </footer>

@@ -72,7 +72,13 @@ export default function Interruptor({ onEncender }) {
         className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,196,107,0.65)_0%,transparent_66%)] blur-2xl"
       />
 
-      <div ref={ref} className="relative">
+      {/* 240x430 fijos: es la variante mas alta de todas, asi que es la que
+          antes se sale por arriba y por abajo. El arrastre no se desajusta
+          al escalar — Framer acumula pixeles de puntero, no de la palanca. */}
+      <div
+        ref={ref}
+        className="relative origin-center scale-[0.62] sm:scale-[0.84] md:scale-100 [@media(max-height:620px)]:scale-[0.55]"
+      >
         <svg width="240" height="430" viewBox="0 0 240 430" className="relative">
           <defs>
             <linearGradient id="placa" x1="0" y1="0" x2="0.35" y2="1">

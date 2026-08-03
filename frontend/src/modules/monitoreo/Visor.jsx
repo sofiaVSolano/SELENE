@@ -63,9 +63,13 @@ export default function Visor({
   }, [reengancharCamara]);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section className="flex flex-col lg:min-h-0 lg:flex-1">
       {/* ------------------------------ ENCUADRE ------------------------------ */}
-      <div className="surface relative min-h-0 flex-1 overflow-hidden rounded-[var(--r-xl)] bg-paper-3">
+      {/* `aspect-video` a 360px de ancho deja un encuadre de ~184px de alto:
+          no cabía ni el gesto de "iniciar monitoreo" (el botón se cortaba
+          contra el borde). El suelo de 300px sólo muerde en móvil — de `sm`
+          en adelante la proporción 16:9 ya da más que eso por sí sola. */}
+      <div className="surface relative aspect-video min-h-[300px] w-full overflow-hidden rounded-[var(--r-xl)] bg-paper-3 sm:min-h-0 lg:aspect-auto lg:h-auto lg:flex-1">
         <div className="relative h-full w-full">
           {/* Vídeo en vivo: siempre montado mientras hay cámara, para no
               perder el stream al alternar con la revisión de historial.
@@ -127,16 +131,16 @@ export default function Visor({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={trans(DUR.entrada)}
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-7 px-8 text-center"
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 px-5 text-center sm:gap-7 sm:px-8"
             >
               <Filamento etiqueta="los modelos están listos y esperando" />
-              <p className="serif max-w-[22ch] text-[1.6rem] leading-tight text-ink-2">
+              <p className="serif max-w-[22ch] text-[1.35rem] leading-tight text-ink-2 sm:text-[1.6rem]">
                 Muéstrale una sala a <em className="text-ink">SELENE</em>.
               </p>
               <Boton
                 variante="luz"
                 onClick={onIniciar}
-                className="px-8"
+                className="px-6 sm:px-8"
                 icono={
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
                     <rect x="3" y="7" width="13" height="10" rx="2" />

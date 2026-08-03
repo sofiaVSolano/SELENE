@@ -103,6 +103,7 @@ export default function AsistentePage() {
   const [pensando, setPensando] = useState(false);
   const [modoVoz, setModoVoz] = useState(false);
   const [impresora, setImpresora] = useState(false);
+  const [barraAbierta, setBarraAbierta] = useState(false);
   // Sólo se llena cuando la impresora se abre porque el usuario pidió un
   // reporte EN EL CHAT (ver `enviar`); abrirla desde el ícono del compositor
   // no trae ninguna instrucción implícita, así que arranca vacío.
@@ -118,7 +119,11 @@ export default function AsistentePage() {
     hilo.current?.scrollTo({ top: hilo.current.scrollHeight, behavior: "smooth" });
   }, [mensajes.length, pensando]);
 
-  /* El compositor crece con el texto hasta un tope, como debe ser. */
+  /* El compositor crece con el texto hasta un tope, como debe ser. También
+     se ajusta al placeholder cuando está vacío, y por eso el placeholder es
+     corto: el texto largo anterior envolvía a cuatro renglones en un móvil y
+     dejaba el compositor inflado antes de escribir nada. Lo que decía de más
+     ya lo dicen el encabezado y las tres sugerencias de arriba. */
   useEffect(() => {
     const nodo = textarea.current;
     if (!nodo) return;
@@ -185,11 +190,29 @@ export default function AsistentePage() {
         onEliminar={c.eliminar}
         onRenombrar={c.renombrar}
         onAnclar={c.anclar}
+        abierta={barraAbierta}
+        onCerrar={() => setBarraAbierta(false)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Abrir el historial: sólo hace falta en móvil, donde vive oculto */}
+        <div className="flex shrink-0 items-center px-4 pt-4 lg:hidden">
+          <button
+            onClick={() => {
+              sonido.roce();
+              setBarraAbierta(true);
+            }}
+            aria-label="Ver conversaciones"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-linen bg-paper text-ink-2 outline-none transition-colors duration-300 hover:text-ink"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M4 7h16M4 12h16M4 17h10" />
+            </svg>
+          </button>
+        </div>
+
         {/* ------------------------------- HILO ------------------------------- */}
-        <div ref={hilo} className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
+        <div ref={hilo} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
           <div className="mx-auto max-w-[760px]">
             {mensajes.length === 0 ? (
               <motion.div
@@ -276,7 +299,7 @@ export default function AsistentePage() {
         </div>
 
         {/* ---------------------------- COMPOSITOR ---------------------------- */}
-        <div className="shrink-0 px-8 pb-6">
+        <div className="shrink-0 px-4 pb-4 sm:px-8 sm:pb-6">
           <div className="mx-auto max-w-[760px]">
             <AnimatePresence mode="wait">
               {modoVoz ? (
@@ -317,8 +340,8 @@ export default function AsistentePage() {
                         enviar(borrador);
                       }
                     }}
-                    placeholder="Pregunta por el consumo, la ocupación o pide un reporte…"
-                    className="max-h-[150px] min-h-[38px] flex-1 resize-none bg-transparent px-2 py-2 text-[14px] leading-relaxed text-ink outline-none placeholder:text-ink-4"
+                    placeholder="Pregunta o pide un reporte…"
+                    className="max-h-[150px] min-h-[38px] flex-1 resize-none bg-transparent px-2 py-2 text-[16px] leading-relaxed text-ink outline-none placeholder:text-ink-4 sm:text-[14px]"
                   />
 
                   {/* Reporte */}

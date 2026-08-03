@@ -84,6 +84,10 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* iOS reescala el texto solo al girar a apaisado y rompe la escala
+       tipográfica entera. El ajuste lo decide el diseño, no el navegador. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -94,6 +98,9 @@
     font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01";
     letter-spacing: -0.006em;
+    /* El destello azul de tap de Android no existe en este sistema: el
+       acuse de recibo de un toque es la luz, no un rectángulo del SO. */
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* La luz ambiente baña TODA la app desde la fuente actual */
@@ -143,6 +150,18 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--amber);
+  }
+  /* En táctil la barra se superpone al contenido: 11 px con reborde se
+     comen el margen de una tarjeta entera. Va después del pulgar base
+     para poder retirarle el borde. */
+  @media (pointer: coarse) {
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+      border: 0;
+    }
   }
 
   :focus-visible {
@@ -200,12 +219,17 @@
     );
     transition: opacity var(--t-bloom) var(--ease-light);
   }
-  .specular:hover::before {
-    opacity: 1;
-  }
-  .specular:hover {
-    box-shadow: var(--shadow-float);
-    transform: translateY(-1px);
+  /* El brillo especular y el levantamiento sólo existen donde hay puntero
+     de verdad. En táctil `:hover` se queda pegado tras el toque y la
+     tarjeta se quedaría encendida hasta que toques otra cosa. */
+  @media (hover: hover) {
+    .specular:hover::before {
+      opacity: 1;
+    }
+    .specular:hover {
+      box-shadow: var(--shadow-float);
+      transform: translateY(-1px);
+    }
   }
 
   /* Halo: la luz que emite un elemento vivo */
@@ -253,9 +277,11 @@
     transition: box-shadow var(--t-ui) var(--ease-light),
       transform var(--t-ui) var(--ease-light);
   }
-  .modulo:hover {
-    box-shadow: var(--shadow-float);
-    transform: translateY(-2px);
+  @media (hover: hover) {
+    .modulo:hover {
+      box-shadow: var(--shadow-float);
+      transform: translateY(-2px);
+    }
   }
 
   /* Filo superior de luz: marca qué módulo acaba de recibir dato nuevo. */

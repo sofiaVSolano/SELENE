@@ -16,6 +16,12 @@ import { MonitoreoProvider } from "../modules/monitoreo/MonitoreoContext.jsx";
  * comporta como el resto del sistema — la seleccion no es un fondo de
  * color, es una luz que se desliza por detras del icono.
  *
+ * En movil ese riel no cabe: 76 px de un telefono de 360 son un quinto de
+ * la pantalla robado al modulo, que es justo lo que el riel existe para
+ * evitar. Por debajo de `lg` gira a barra inferior — misma pieza, mismos
+ * iconos, misma luz deslizante (el `layoutId` funciona igual en fila que
+ * en columna), al alcance del pulgar.
+ *
  * Aqui viven las dos cosas que tienen que sobrevivir a la navegacion:
  * el pulso de luz global (para que una inferencia se sienta este donde
  * este el usuario) y el estado del monitoreo (para que ir al asistente y
@@ -97,8 +103,10 @@ function Item({ ruta, activa }) {
         {ruta.icono}
       </svg>
 
-      {/* Etiqueta al pasar: nunca ocupa espacio permanente */}
-      <span className="pointer-events-none absolute left-[58px] z-30 whitespace-nowrap rounded-lg border border-linen bg-paper px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-2 opacity-0 shadow-raise transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 -translate-x-1">
+      {/* Etiqueta al pasar: nunca ocupa espacio permanente. Solo desde `lg`:
+          en la barra inferior saldria fuera de pantalla, y en tactil no hay
+          hover que la dispare. */}
+      <span className="pointer-events-none absolute left-[58px] z-30 hidden whitespace-nowrap rounded-lg border border-linen bg-paper px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-ink-2 opacity-0 shadow-raise transition-all duration-200 -translate-x-1 group-hover:translate-x-0 group-hover:opacity-100 lg:block">
         {ruta.nombre}
       </span>
     </NavLink>
@@ -113,19 +121,24 @@ export default function ShellInterno({ children }) {
     <MonitoreoProvider>
       <PulsoDeLuz />
 
-      <div className="relative z-[2] flex h-screen overflow-hidden bg-paper">
-        <nav className="relative z-30 flex w-[76px] shrink-0 flex-col items-center justify-between border-r border-linen py-6">
-          <NavLink to="/" aria-label="Inicio" className="outline-none">
+      {/* `dvh` y no `vh`: en moviles la barra de direcciones entra y sale, y
+          con `100vh` la barra inferior de navegacion queda debajo del borde
+          visible justo cuando el navegador esta expandido. */}
+      <div className="relative z-[2] flex h-[100dvh] flex-col overflow-hidden bg-paper lg:flex-row">
+        {/* La nav va primero en el DOM (orden de tabulacion), pero en movil se
+            dibuja abajo: `order` la baja sin tocar el orden de lectura. */}
+        <nav className="relative z-30 order-2 flex w-full shrink-0 items-center justify-between gap-2 border-t border-linen px-3 py-2 lg:order-1 lg:w-[76px] lg:flex-col lg:border-r lg:border-t-0 lg:px-0 lg:py-6">
+          <NavLink to="/" aria-label="Inicio" className="shrink-0 outline-none">
             <Marca tamano={24} conTexto={false} className="text-ink" />
           </NavLink>
 
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 lg:flex-col">
             {RUTAS.map((r) => (
               <Item key={r.a} ruta={r} activa={pathname.startsWith(r.a)} />
             ))}
           </div>
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3 lg:flex-col lg:gap-4">
             {/* El riel mide 76px: el interruptor de sonido entra a escala */}
             <div className="scale-[0.72]">
               <BotonSonido />
@@ -136,14 +149,14 @@ export default function ShellInterno({ children }) {
                 logout();
               }}
               title={usuario?.nombre}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-linen font-mono text-[11px] uppercase text-ink-2 outline-none transition-colors duration-300 hover:border-ink-4 hover:text-ink"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-linen font-mono text-[11px] uppercase text-ink-2 outline-none transition-colors duration-300 hover:border-ink-4 hover:text-ink"
             >
               {(usuario?.nombre || "?").slice(0, 1)}
             </button>
           </div>
         </nav>
 
-        <main className="relative flex-1 overflow-hidden">
+        <main className="relative order-1 min-h-0 flex-1 overflow-hidden lg:order-2">
           {/* La pantalla que entra funde con la que sale: nunca hay corte */}
           <AnimatePresence mode="wait">
             <div key={pathname} className="h-full">

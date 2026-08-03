@@ -79,7 +79,7 @@ export default function Sensor({ onEncender }) {
         className="pointer-events-none fixed left-0 top-0 z-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(255,196,107,0.55)_0%,transparent_66%)] blur-2xl will-change-transform"
       />
 
-      <div className="relative z-10 flex h-[240px] w-[240px] items-center justify-center">
+      <div className="relative z-10 flex h-[240px] w-[240px] origin-center items-center justify-center scale-[0.88] sm:scale-100">
         <svg width="200" height="200" viewBox="0 0 200 200" className="absolute">
           {/* Anillo de lectura */}
           <circle cx="100" cy="100" r={radio} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />

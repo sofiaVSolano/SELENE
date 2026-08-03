@@ -191,16 +191,43 @@ export default function BarraConversaciones({
   onEliminar,
   onRenombrar,
   onAnclar,
+  abierta = false,
+  onCerrar,
 }) {
   const ancladas = visibles.filter((c) => c.anclada);
   const resto = visibles.filter((c) => !c.anclada);
 
+  const elegir = (id) => {
+    onElegir(id);
+    onCerrar?.();
+  };
+
   return (
-    <div className="flex h-full w-[248px] shrink-0 flex-col border-r border-linen bg-paper-2/50 px-3 py-4">
+    <>
+      {/* Fondo: sólo en móvil, mientras la barra vive como cajón encima del hilo */}
+      <AnimatePresence>
+        {abierta && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={trans(0.25)}
+            onClick={onCerrar}
+            className="fixed inset-0 z-30 bg-ink/25 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <div
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-[248px] max-w-[80vw] shrink-0 flex-col border-r border-linen bg-paper px-3 py-4 shadow-float transition-transform duration-300 ease-light lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:bg-paper-2/50 lg:shadow-none ${
+          abierta ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
       <button
         onClick={() => {
           onCrear();
           sonido.click(true);
+          onCerrar?.();
         }}
         onMouseEnter={() => sonido.roce()}
         className="group mb-3 flex items-center gap-2.5 rounded-[12px] border border-linen bg-paper px-3 py-2.5 text-left outline-none shadow-raise transition-all duration-300 ease-light hover:-translate-y-px hover:shadow-float"
@@ -244,7 +271,7 @@ export default function BarraConversaciones({
                     key={c.id}
                     conversacion={c}
                     activa={c.id === activaId}
-                    onElegir={onElegir}
+                    onElegir={elegir}
                     onEliminar={onEliminar}
                     onRenombrar={onRenombrar}
                     onAnclar={onAnclar}
@@ -278,6 +305,7 @@ export default function BarraConversaciones({
           </p>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -68,7 +68,9 @@ export default function Fosforo({ onEncender }) {
 
   return (
     <div className="relative flex flex-col items-center">
-      <div ref={ref} className="relative">
+      {/* La caja mide 300 px de ancho: en un telefono de 360 se comeria el
+          viewport entero con la flecha del gesto incluida. */}
+      <div ref={ref} className="relative origin-center scale-[0.8] sm:scale-100">
         {/* Caja de fosforos */}
         <div className="relative h-[190px] w-[300px] rounded-[14px] border border-white/12 bg-white/[0.03] p-4 shadow-[0_20px_60px_-30px_rgba(0,0,0,1)]">
           <p className="font-mono text-[9px] uppercase tracking-[0.4em] text-white/30">selene</p>

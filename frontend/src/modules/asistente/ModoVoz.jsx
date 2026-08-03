@@ -233,7 +233,7 @@ export default function ModoVoz({ onTurno, onCerrar }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 34 }}
       transition={trans(0.42)}
-      className="vidrio relative overflow-hidden px-6 py-5"
+      className="vidrio relative overflow-hidden px-4 py-4 sm:px-6 sm:py-5"
     >
       {/* Resplandor de fondo: cambia de color con el turno */}
       <motion.span
@@ -249,11 +249,11 @@ export default function ModoVoz({ onTurno, onCerrar }) {
         transition={trans(0.5)}
       />
 
-      <div className="relative flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="relative flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* El bombillo que palpita mientras escucha */}
           <motion.span
-            className="relative flex h-7 w-7 items-center justify-center"
+            className="relative flex h-7 w-7 shrink-0 items-center justify-center"
             animate={
               estado === "escuchando"
                 ? { scale: [1, 1.12, 1] }
@@ -281,7 +281,7 @@ export default function ModoVoz({ onTurno, onCerrar }) {
             </svg>
           </motion.span>
 
-          <div>
+          <div className="min-w-0">
             <p className="annot" style={{ color: estado === "error" ? "var(--clay)" : undefined }}>
               {rotulo}
             </p>
@@ -302,7 +302,7 @@ export default function ModoVoz({ onTurno, onCerrar }) {
           </div>
         </div>
 
-        <div className="mx-4 min-w-0 flex-1">
+        <div className="mx-1 min-w-0 flex-1 sm:mx-4">
           <Onda
             analyser={analyser}
             estado={estado === "hablando" ? "hablando" : estado === "escuchando" ? "escuchando" : "pensando"}

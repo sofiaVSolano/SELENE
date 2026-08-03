@@ -128,7 +128,7 @@ export default function IgnitionGate({ onCompleto }) {
       </AnimatePresence>
 
       {/* Firma del mecanismo. Deja claro que hay mas de uno. */}
-      <div className="absolute left-8 top-8 z-20 font-mono text-[10px] uppercase tracking-[0.34em] text-white/25">
+      <div className="absolute left-4 top-4 z-20 font-mono text-[10px] uppercase tracking-[0.34em] text-white/25 sm:left-8 sm:top-8">
         selene · mecanismo {String(indice).padStart(2, "0")} / {String(MECANISMOS.length).padStart(2, "0")}
         <span className="ml-3 text-white/40">{nombre}</span>
       </div>
@@ -137,7 +137,7 @@ export default function IgnitionGate({ onCompleto }) {
       {!encendiendo && (
         <button
           onClick={cambiar}
-          className="group absolute bottom-8 right-8 z-20 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.3em] text-white/20 outline-none transition-all duration-300 hover:border-white/25 hover:text-white/60"
+          className="group absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.3em] text-white/20 outline-none transition-all duration-300 hover:border-white/25 hover:text-white/60 sm:bottom-8 sm:right-8"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" className="transition-transform duration-500 group-hover:rotate-180">
             <path

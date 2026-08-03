@@ -27,7 +27,7 @@ export default function HistorialPage() {
   const [pestana, setPestana] = useState("capturas");
 
   return (
-    <motion.div {...escena} className="flex h-full flex-col px-8 py-6">
+    <motion.div {...escena} className="flex h-full flex-col px-4 py-5 sm:px-8 sm:py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-5">
         <div>
           <p className="annot mb-1">historial</p>

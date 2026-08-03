@@ -149,15 +149,15 @@ export default function AccesoPage() {
   };
 
   return (
-    <main className="relative z-[2] flex min-h-screen flex-col bg-paper text-ink">
-      <header className="flex items-center justify-between px-8 py-6">
+    <main className="relative z-[2] flex min-h-[100svh] flex-col bg-paper text-ink">
+      <header className="flex items-center justify-between px-4 py-4 sm:px-8 sm:py-6">
         <Link to="/" onClick={() => sonido.roce()} aria-label="Volver al inicio">
           <Marca className="text-ink" />
         </Link>
         <BotonSonido />
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-6 pb-16">
+      <div className="flex flex-1 items-center justify-center px-4 pb-16 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 26, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -178,7 +178,7 @@ export default function AccesoPage() {
 
           <motion.form
             onSubmit={enviar}
-            className="vidrio relative overflow-hidden px-8 py-10 sm:px-12"
+            className="vidrio relative overflow-hidden px-5 py-8 sm:px-12 sm:py-10"
             animate={{
               borderColor: todoListo ? "rgba(255,214,138,0.95)" : "rgba(255,255,255,0.7)",
             }}

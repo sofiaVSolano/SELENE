@@ -37,6 +37,13 @@ export default function PuntoMonitoreo({ tamano = 44, etiqueta = "iniciar monito
     window.setTimeout(() => navegar(usuario ? "/panel" : "/acceso", { state: { intencion: "monitoreo" } }), 480);
   };
 
+  /* En `grande`, la camara y su rotulo en una sola fila miden mas que un
+     telefono (368 px contra 360) y le sacaban barra horizontal a la landing
+     entera. Por debajo de `sm` se apilan; desde ahi, la fila de siempre. */
+  const disposicion = grande
+    ? "flex-col gap-5 text-center sm:flex-row sm:gap-9 sm:text-left"
+    : "gap-3";
+
   return (
     <motion.button
       onClick={entrar}
@@ -46,7 +53,7 @@ export default function PuntoMonitoreo({ tamano = 44, etiqueta = "iniciar monito
       }}
       onHoverEnd={() => setHover(false)}
       aria-label={etiqueta}
-      className={`group relative flex items-center outline-none ${grande ? "gap-9" : "gap-3"}`}
+      className={`group relative flex items-center outline-none ${disposicion}`}
     >
       <motion.span
         className="relative block shrink-0"
@@ -144,7 +151,11 @@ export default function PuntoMonitoreo({ tamano = 44, etiqueta = "iniciar monito
         />
       </motion.span>
 
-      <span className={`overflow-hidden text-left ${grande ? "" : "hidden md:block"}`}>
+      <span
+        className={`overflow-hidden ${
+          grande ? "text-center sm:text-left" : "hidden text-left md:block"
+        }`}
+      >
         <motion.span
           className={`block whitespace-nowrap font-mono uppercase tracking-[0.32em] text-ink-2 ${
             grande ? "text-[13px]" : "text-[10px]"

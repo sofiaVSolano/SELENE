@@ -56,7 +56,7 @@ export default function Lampara({ onEncender }) {
 
   return (
     <div className="relative flex flex-col items-center">
-      <div ref={ref} className="relative">
+      <div ref={ref} className="relative origin-center scale-[0.68] sm:scale-90 md:scale-100 [@media(max-height:620px)]:scale-[0.55]">
         <svg width="400" height="380" viewBox="0 0 400 380" className="relative overflow-visible">
           <defs>
             <linearGradient id="conoLampara" x1="0" y1="0" x2="0" y2="1">

@@ -50,6 +50,8 @@ export default function Campo({
       </label>
 
       <div className="flex items-center gap-3">
+        {/* 16px en movil, no 15: por debajo del umbral iOS Safari hace zoom al
+            enfocar y deja el viewport corrido. Un pixel que nadie ve. */}
         <input
           id={id}
           type={tipo}
@@ -62,7 +64,7 @@ export default function Campo({
             sonido.roce();
           }}
           onBlur={() => setFoco(false)}
-          className="peer w-full bg-transparent py-2 text-[15px] text-ink outline-none placeholder:text-ink-4"
+          className="peer w-full bg-transparent py-2 text-[16px] text-ink outline-none placeholder:text-ink-4 sm:text-[15px]"
           {...resto}
         />
 

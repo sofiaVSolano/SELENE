@@ -237,15 +237,18 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={trans(0.3)}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-paper/70 px-6 backdrop-blur-md"
+      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-paper/70 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-6"
       onClick={(e) => e.target === e.currentTarget && fase !== "imprimiendo" && onCerrar()}
     >
+      {/* La maquina, las cinco plantillas y el boton no caben en la altura de
+          un telefono: el dialogo se limita al viewport y desplaza por dentro
+          en vez de desbordar sin salida. */}
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.97 }}
         transition={RESORTE.objeto}
-        className="vidrio relative w-full max-w-[560px] overflow-hidden px-8 py-8"
+        className="vidrio relative max-h-[92dvh] w-full max-w-[560px] overflow-y-auto px-5 py-6 sm:px-8 sm:py-8"
       >
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -267,7 +270,7 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
         </div>
 
         {/* ---------------------------- LA MÁQUINA ---------------------------- */}
-        <div className="relative mx-auto flex w-[300px] flex-col items-center">
+        <div className="relative mx-auto flex w-full max-w-[300px] flex-col items-center">
           {/* Cuerpo */}
           <motion.svg
             viewBox="0 0 300 96"
@@ -409,7 +412,7 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
                         rows={2}
                         maxLength={1000}
                         placeholder='p. ej. "enfócate en el consumo del pasillo esta semana y compáralo con el mes pasado"'
-                        className="mb-2.5 w-full resize-none rounded-[12px] border border-linen bg-paper/60 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink outline-none transition-colors duration-300 placeholder:text-ink-3 focus:border-amber"
+                        className="mb-2.5 w-full resize-none rounded-[12px] border border-linen bg-paper/60 px-3 py-2.5 text-[16px] leading-relaxed text-ink outline-none transition-colors duration-300 placeholder:text-ink-3 focus:border-amber sm:text-[12.5px]"
                       />
                     </motion.div>
                   )}

@@ -75,7 +75,10 @@ export default function CentroMonitoreo() {
     comparadorListo && new Date(capA.ts) <= new Date(capB.ts) ? [capA, capB] : [capB, capA];
 
   return (
-    <motion.div {...escena} className="flex h-full min-h-0 flex-col px-6 py-4">
+    <motion.div
+      {...escena}
+      className="flex h-full flex-col overflow-y-auto px-4 py-4 sm:px-6 lg:overflow-hidden"
+    >
       {/* ------------------------------ CABECERA ------------------------------ */}
       <header className="mb-3 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -121,8 +124,8 @@ export default function CentroMonitoreo() {
       </header>
 
       {/* --------------------------- CUERPO 70 / 30 --------------------------- */}
-      <div className="flex min-h-0 flex-1 gap-4">
-        <div className="flex min-w-0 flex-[7] flex-col">
+      <div className="flex flex-1 flex-col gap-4 lg:min-h-0 lg:flex-row">
+        <div className="flex min-w-0 flex-col lg:flex-[7]">
           <AnimatePresence mode="wait">
             {comparando ? (
               comparadorListo ? (
@@ -200,7 +203,7 @@ export default function CentroMonitoreo() {
         </div>
 
         {/* ----------------------------- ANOTACIONES ----------------------------- */}
-        <div className="min-w-[286px] max-w-[330px] flex-[3] overflow-y-auto pr-1">
+        <div className="w-full shrink-0 lg:min-w-[286px] lg:max-w-[330px] lg:flex-[3] lg:overflow-y-auto lg:pr-1">
           <PanelLateral
             analisis={analisis}
             anterior={m.anterior?.analisis}

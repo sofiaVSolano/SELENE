@@ -66,7 +66,7 @@ function Lado({ captura, marcas, color, titulo, etiquetaMarca, indice }) {
       initial={{ opacity: 0, y: 18, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={trans(0.5, indice * 0.09)}
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex flex-col lg:min-h-0 lg:flex-1"
     >
       <figcaption className="mb-2 flex items-baseline justify-between">
         <span className="annot">{titulo}</span>
@@ -79,7 +79,7 @@ function Lado({ captura, marcas, color, titulo, etiquetaMarca, indice }) {
         </span>
       </figcaption>
 
-      <div className="surface relative min-h-0 flex-1 overflow-hidden rounded-[var(--r-lg)] bg-paper-3">
+      <div className="surface relative aspect-video overflow-hidden rounded-[var(--r-lg)] bg-paper-3 lg:aspect-auto lg:min-h-0 lg:flex-1">
         <div className="flex h-full w-full items-center justify-center">
           <div
             className="relative"
@@ -200,8 +200,8 @@ export default function Comparador({ a, b }) {
   const segundos = Math.round((new Date(b.ts) - new Date(a.ts)) / 1000);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 gap-4">
+    <section className="flex flex-col lg:min-h-0 lg:flex-1">
+      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row">
         <Lado
           captura={a}
           marcas={perdidos}

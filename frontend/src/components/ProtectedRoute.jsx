@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={trans(0.3)}
-        className="relative z-[2] flex min-h-screen items-center justify-center bg-paper"
+        className="relative z-[2] flex min-h-[100svh] items-center justify-center bg-paper"
       >
         <Filamento etiqueta="reconociendo tu sesión" />
       </motion.div>
