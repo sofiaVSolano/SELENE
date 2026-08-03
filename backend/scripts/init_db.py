@@ -24,7 +24,8 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from api.db_init import aplicar_schema  # noqa: E402
+from api.db_init import aplicar_schema, sembrar_usuario_demo  # noqa: E402
 
 if __name__ == "__main__":
     aplicar_schema()
+    sembrar_usuario_demo()

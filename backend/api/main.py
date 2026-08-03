@@ -51,9 +51,10 @@ def _startup() -> None:
     # esto lo hacia un contenedor `db-init` aparte esperando a que el
     # servidor de base de datos levantara). Idempotente: no hace nada si
     # `database/selene.db` ya tiene las tablas.
-    from .db_init import aplicar_schema
+    from .db_init import aplicar_schema, sembrar_usuario_demo
 
     aplicar_schema()
+    sembrar_usuario_demo()
 
     # Carga los modelos de vision UNA vez al arrancar (no en la primera
     # peticion), para que el dashboard no espere el costo de inicializacion

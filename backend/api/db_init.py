@@ -30,6 +30,13 @@ logger = logging.getLogger("api.db_init")
 
 SCHEMA_PATH = settings.project_root / "database" / "schema.sql"
 
+# Cuenta de prueba que se ofrece en el login (ver DemoCredentials.jsx en el
+# frontend) para quien quiera entrar sin registrarse. Mismas credenciales en
+# ambos lados a proposito: el frontend solo las muestra, quien las hace
+# validas de verdad es `sembrar_usuario_demo()`.
+DEMO_CORREO = "invitado@selene.app"
+DEMO_CONTRASENA = "SeleneInvitado26"
+
 
 def _ruta_sqlite() -> Path:
     """Extrae la ruta de archivo de una URL `sqlite:///...` (relativa) o
@@ -61,3 +68,43 @@ def aplicar_schema() -> None:
     finally:
         conn.close()
     logger.info("Esquema listo (%s).", ruta_db)
+
+
+def sembrar_usuario_demo() -> None:
+    """Crea la cuenta demo (`DEMO_CORREO`/`DEMO_CONTRASENA`) si todavia no
+    existe. Va por el ORM (no por `sqlite3` crudo, a diferencia de
+    `aplicar_schema`) porque necesita `hash_password` (bcrypt) para dejar la
+    fila en el mismo formato que `POST /api/auth/register` -- si se
+    insertara la contrasena en texto plano, el login fallaria.
+
+    Idempotente por busqueda de correo antes de insertar: reiniciar el
+    servidor no duplica la fila ni pisa una contrasena que alguien haya
+    cambiado a mano en la base."""
+    from sqlalchemy.exc import IntegrityError
+
+    from . import models
+    from .database import SessionLocal
+    from .security import hash_password
+
+    db = SessionLocal()
+    try:
+        ya_existe = db.query(models.Usuario).filter(models.Usuario.correo == DEMO_CORREO).first()
+        if ya_existe is not None:
+            return
+
+        db.add(
+            models.Usuario(
+                nombre="Cuenta invitado",
+                correo=DEMO_CORREO,
+                contrasena_hash=hash_password(DEMO_CONTRASENA),
+            )
+        )
+        try:
+            db.commit()
+        except IntegrityError:
+            # Carrera con otro worker sembrando al mismo tiempo: el UNIQUE de
+            # `correo` ya gano, no hay nada que hacer.
+            db.rollback()
+    finally:
+        db.close()
+    logger.info("Usuario demo listo (%s).", DEMO_CORREO)

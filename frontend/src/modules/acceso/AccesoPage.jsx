@@ -12,6 +12,7 @@ import { DUR, RESORTE, trans } from "../../lib/movimiento.js";
 import { ApiError } from "../../lib/api.js";
 import { sonido } from "../../lib/sound.js";
 import Bombillo from "./Bombillo.jsx";
+import TarjetaDemo from "./TarjetaDemo.jsx";
 import { medirFuerza } from "./fuerza.js";
 
 /**
@@ -31,6 +32,11 @@ import { medirFuerza } from "./fuerza.js";
  */
 
 const RE_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Cuenta real (ver `sembrar_usuario_demo` en backend/api/db_init.py, mismos
+// valores) para quien quiera entrar sin registrarse.
+const DEMO_CORREO = "invitado@selene.app";
+const DEMO_CLAVE = "SeleneInvitado26";
 
 export default function AccesoPage() {
   const [modo, setModo] = useState("entrar"); // entrar | crear
@@ -119,6 +125,21 @@ export default function AccesoPage() {
     }
   }
 
+  /** Rellena el formulario con la cuenta de prueba. No dispara una
+   * animación propia: al escribir `clave`, el bombillo, el resplandor de la
+   * tarjeta y los check de los campos ya reaccionan solos (misma cadena que
+   * usa cualquier tecleo real), así que rellenar se ve y se siente igual
+   * que escribir. */
+  const usarDemo = () => {
+    if (crear) cambiarModo("entrar");
+    setCorreo(DEMO_CORREO);
+    setClave(DEMO_CLAVE);
+    setClaveTerminada(true);
+    setEscribiendo(false);
+    setError("");
+    sonido.confirmar();
+  };
+
   const cambiarModo = (nuevo) => {
     if (nuevo === modo) return;
     sonido.click(nuevo === "crear");
@@ -199,6 +220,10 @@ export default function AccesoPage() {
                       ? "Toma veinte segundos. Después, la cámara hace el resto."
                       : "Entra y sigue midiendo dónde se está yendo la energía."}
                 </p>
+
+                <AnimatePresence initial={false}>
+                  {!crear && <TarjetaDemo key="demo" onUsar={usarDemo} />}
+                </AnimatePresence>
 
                 <div className="flex flex-col gap-1">
                   <AnimatePresence mode="popLayout" initial={false}>
