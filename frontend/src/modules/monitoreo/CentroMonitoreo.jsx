@@ -191,7 +191,7 @@ export default function CentroMonitoreo() {
             )}
           </AnimatePresence>
 
-          <div className="mt-3 shrink-0">
+          <div className="mt-3 shrink-0" data-tour="linea-tiempo">
             <LineaDeTiempo
               capturas={m.capturas}
               activaId={m.capturaActiva?.id}
@@ -203,7 +203,10 @@ export default function CentroMonitoreo() {
         </div>
 
         {/* ----------------------------- ANOTACIONES ----------------------------- */}
-        <div className="w-full shrink-0 lg:min-w-[286px] lg:max-w-[330px] lg:flex-[3] lg:overflow-y-auto lg:pr-1">
+        <div
+          data-tour="panel"
+          className="w-full shrink-0 lg:min-w-[286px] lg:max-w-[330px] lg:flex-[3] lg:overflow-y-auto lg:pr-1"
+        >
           <PanelLateral
             analisis={analisis}
             anterior={m.anterior?.analisis}

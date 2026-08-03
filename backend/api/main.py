@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import alertas, asistente, auth, deteccion, energia, luminarias
+from .routers import alertas, asistente, auth, deteccion, energia, luminarias, recorrido
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("api.main")
@@ -37,6 +37,7 @@ app.include_router(deteccion.router)
 app.include_router(alertas.router)
 app.include_router(energia.router)
 app.include_router(asistente.router)
+app.include_router(recorrido.router)
 
 
 @app.get("/api/health", tags=["health"])

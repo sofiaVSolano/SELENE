@@ -5,8 +5,15 @@ import { alternarSonido, estaSilenciado, sonido, suscribirSonido } from "../lib/
 /**
  * Interruptor de sonido. No es un icono de altavoz tachado: son ondas
  * que dejan de propagarse. Coherente con el lenguaje del resto.
+ *
+ * `compacto` deja solo el icono, en un círculo de 36px igual que sus vecinos
+ * del riel. Nació de un problema medible: la píldora con la palabra "audio"
+ * ocupa ~88px, y en el riel se metía a `scale-[0.72]`. Escalar NO cambia la
+ * caja de layout, así que seguía reservando 88px dentro de un riel de 76 —
+ * y en la barra inferior de un móvil de 320px empujaba el botón de sesión
+ * fuera de la pantalla. Sin etiqueta no hay nada que escalar ni que mentir.
  */
-export default function BotonSonido({ oscuro = false }) {
+export default function BotonSonido({ oscuro = false, compacto = false }) {
   const [mudo, setMudo] = useState(estaSilenciado());
 
   useEffect(() => suscribirSonido(setMudo), []);
@@ -18,7 +25,10 @@ export default function BotonSonido({ oscuro = false }) {
         if (!nuevo) sonido.roce();
       }}
       aria-label={mudo ? "Activar sonido" : "Silenciar"}
-      className={`flex h-9 items-center gap-2 rounded-full border px-3 outline-none transition-colors duration-300 ${
+      title={compacto ? (mudo ? "Activar sonido" : "Silenciar") : undefined}
+      className={`flex h-9 shrink-0 items-center rounded-full border outline-none transition-colors duration-300 ${
+        compacto ? "w-9 justify-center" : "gap-2 px-3"
+      } ${
         oscuro
           ? "border-white/12 text-white/40 hover:border-white/30 hover:text-white/80"
           : "border-linen text-ink-3 hover:border-ink-4 hover:text-ink"
@@ -43,7 +53,9 @@ export default function BotonSonido({ oscuro = false }) {
           />
         ))}
       </svg>
-      <span className="font-mono text-[9px] uppercase tracking-[0.28em]">{mudo ? "mudo" : "audio"}</span>
+      {!compacto && (
+        <span className="font-mono text-[9px] uppercase tracking-[0.28em]">{mudo ? "mudo" : "audio"}</span>
+      )}
     </button>
   );
 }

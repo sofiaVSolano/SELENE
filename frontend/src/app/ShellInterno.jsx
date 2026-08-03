@@ -7,6 +7,7 @@ import PulsoDeLuz from "../light/PulsoDeLuz.jsx";
 import { RESORTE } from "../lib/movimiento.js";
 import { sonido } from "../lib/sound.js";
 import { MonitoreoProvider } from "../modules/monitoreo/MonitoreoContext.jsx";
+import { RecorridoProvider, useRecorrido } from "../onboarding/RecorridoContext.jsx";
 
 /**
  * SHELL INTERNO
@@ -113,12 +114,47 @@ function Item({ ruta, activa }) {
   );
 }
 
-export default function ShellInterno({ children }) {
+/**
+ * El timbre de Lum. Es el punto por el que se vuelve a llamar al recorrido de
+ * bienvenida — lo que la usuaria pidió como "botón de ayuda". Vive junto al
+ * interruptor de sonido porque son de la misma familia: no navegan a ningún
+ * sitio, cambian cómo te acompaña la aplicación.
+ */
+function BotonAyuda() {
+  const { lanzar, abierto } = useRecorrido();
+
+  return (
+    <motion.button
+      whileHover={{ y: -1.5 }}
+      whileTap={{ scale: 0.94 }}
+      transition={RESORTE.firme}
+      onClick={() => {
+        sonido.pulso();
+        lanzar();
+      }}
+      onMouseEnter={() => sonido.roce()}
+      disabled={abierto}
+      title="Volver a ver el recorrido"
+      aria-label="Volver a ver el recorrido de bienvenida"
+      data-tour="ayuda"
+      className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-linen text-ink-3 outline-none transition-colors duration-300 hover:border-ink-4 hover:text-ink disabled:opacity-40"
+    >
+      {/* Un bombillo diminuto: el mismo objeto que va a aparecer al pulsarlo */}
+      <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M9.6 17.6h4.8M10.3 20.2h3.4" />
+        <path d="M12 3.6a5.2 5.2 0 0 1 3 9.5c-.5.35-.8.85-.8 1.45v.3H9.8v-.3c0-.6-.3-1.1-.8-1.45A5.2 5.2 0 0 1 12 3.6Z" />
+      </svg>
+      <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgb(var(--light-rgb)/0.35)_0%,transparent_70%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+    </motion.button>
+  );
+}
+
+function Interior({ children }) {
   const { pathname } = useLocation();
   const { usuario, logout } = useAuth();
 
   return (
-    <MonitoreoProvider>
+    <>
       <PulsoDeLuz />
 
       {/* `dvh` y no `vh`: en moviles la barra de direcciones entra y sale, y
@@ -139,10 +175,10 @@ export default function ShellInterno({ children }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3 lg:flex-col lg:gap-4">
-            {/* El riel mide 76px: el interruptor de sonido entra a escala */}
-            <div className="scale-[0.72]">
-              <BotonSonido />
-            </div>
+            <BotonAyuda />
+            {/* Sin etiqueta: en el riel y en la barra inferior el espacio se
+                mide en píxeles reales, y la píldora con texto no cabe. */}
+            <BotonSonido compacto />
             <button
               onClick={() => {
                 sonido.click(false);
@@ -165,6 +201,20 @@ export default function ShellInterno({ children }) {
           </AnimatePresence>
         </main>
       </div>
+    </>
+  );
+}
+
+export default function ShellInterno({ children }) {
+  return (
+    <MonitoreoProvider>
+      {/* El recorrido va DENTRO del shell y no en `App`: necesita el riel y
+          los módulos montados para poder señalarlos, y sobrevive a la
+          navegación igual que el monitoreo, porque él mismo navega entre
+          secciones mientras explica. */}
+      <RecorridoProvider>
+        <Interior>{children}</Interior>
+      </RecorridoProvider>
     </MonitoreoProvider>
   );
 }

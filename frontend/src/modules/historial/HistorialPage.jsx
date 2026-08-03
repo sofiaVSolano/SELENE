@@ -36,7 +36,7 @@ export default function HistorialPage() {
           </h1>
         </div>
 
-        <div className="flex gap-1 rounded-full border border-linen bg-paper-2/60 p-1">
+        <div data-tour="pestanas-historial" className="flex gap-1 rounded-full border border-linen bg-paper-2/60 p-1">
           {PESTANAS.map((p) => (
             <button
               key={p.clave}

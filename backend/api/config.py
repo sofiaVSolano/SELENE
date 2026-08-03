@@ -61,6 +61,16 @@ class Settings(BaseSettings):
     openai_tts_voice: str = "alloy"
     asistente_reports_dir: str = "reports/asistente"
 
+    # --- Voz de Lum, el recorrido de bienvenida (backend/api/routers/recorrido.py) ---
+    # ElevenLabs es el motor PRINCIPAL de esta narración (voz cálida y natural
+    # de verdad, a diferencia de `SpeechSynthesis` del navegador). Si no hay
+    # clave configurada, `recorrido.py` cae al TTS de OpenAI de arriba, y si
+    # ese también falla, el frontend cae a la voz del navegador — el
+    # recorrido nunca se queda mudo, ver narracion.js.
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "rEVYTKPqwSMhytFPayIb"
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+
     @property
     def project_root(self) -> Path:
         return PROJECT_ROOT

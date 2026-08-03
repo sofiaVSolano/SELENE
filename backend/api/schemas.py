@@ -29,7 +29,17 @@ class UsuarioOut(BaseModel):
     nombre: str
     correo: str
     rol: str
+    # El frontend decide con esto si lanza el recorrido de bienvenida. Viaja
+    # en el login y en /me para que la decision este tomada antes de pintar
+    # la primera pantalla, sin una peticion extra.
+    onboarding_completado: bool
     fecha_registro: dt.datetime
+
+
+class NarracionIn(BaseModel):
+    """Una frase del recorrido de bienvenida, para leerla en voz alta."""
+
+    texto: str = Field(min_length=1, max_length=600)
 
 
 class TokenResponse(BaseModel):

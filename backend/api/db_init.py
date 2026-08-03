@@ -45,6 +45,38 @@ def _ruta_sqlite() -> Path:
     return Path(sin_esquema)
 
 
+# Columnas agregadas despues de que la base ya existia en algun equipo. Un
+# `CREATE TABLE IF NOT EXISTS` no altera una tabla existente, asi que sin esto
+# el esquema nuevo solo llegaria a las bases creadas desde cero.
+# (tabla, columna, DDL del ALTER)
+_COLUMNAS_NUEVAS: tuple[tuple[str, str, str], ...] = (
+    (
+        "usuarios",
+        "onboarding_completado",
+        "ALTER TABLE usuarios ADD COLUMN onboarding_completado INTEGER NOT NULL DEFAULT 0",
+    ),
+)
+
+
+def _migrar_columnas(conn: sqlite3.Connection) -> None:
+    """Agrega columnas que falten en bases ya creadas. Idempotente: consulta
+    `PRAGMA table_info` antes de tocar nada, asi que arrancar el servidor mil
+    veces no hace mil ALTER ni rompe si la columna ya esta.
+
+    Nota sobre el DEFAULT 0: las cuentas que YA existian quedan marcadas como
+    "sin recorrido", asi que veran la bienvenida la proxima vez que entren.
+    Es lo correcto — nunca lo han visto — y de paso hace la funcion probable
+    sin borrar la base."""
+    for tabla, columna, ddl in _COLUMNAS_NUEVAS:
+        existentes = {fila[1] for fila in conn.execute(f"PRAGMA table_info({tabla})")}
+        if not existentes:
+            continue  # la tabla aun no existe: la creara el schema, ya con la columna
+        if columna in existentes:
+            continue
+        logger.info("Migrando: %s.%s", tabla, columna)
+        conn.execute(ddl)
+
+
 def aplicar_schema() -> None:
     if not settings.database_url.startswith("sqlite"):
         logger.info(
@@ -64,6 +96,7 @@ def aplicar_schema() -> None:
     conn = sqlite3.connect(str(ruta_db))
     try:
         conn.executescript(sql)
+        _migrar_columnas(conn)
         conn.commit()
     finally:
         conn.close()

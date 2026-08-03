@@ -48,3 +48,21 @@ def login(payload: schemas.UsuarioLogin, db: Session = Depends(get_db)) -> schem
 @router.get("/me", response_model=schemas.UsuarioOut)
 def me(usuario: models.Usuario = Depends(get_current_user)) -> schemas.UsuarioOut:
     return schemas.UsuarioOut.model_validate(usuario)
+
+
+@router.post("/onboarding/completado", response_model=schemas.UsuarioOut)
+def marcar_onboarding(
+    usuario: models.Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> schemas.UsuarioOut:
+    """Marca el recorrido de bienvenida como visto. Se llama al terminarlo y
+    tambien al saltarlo: saltar es una decision del usuario, y volver a
+    lanzarselo en el siguiente login seria no haberle hecho caso.
+
+    No hay endpoint para desmarcarlo: relanzar el recorrido a mano (boton de
+    ayuda del riel) no toca la base, solo abre el recorrido en esa sesion.
+    Asi 'ya lo vi' es un hecho que no se revierte solo."""
+    usuario.onboarding_completado = True
+    db.commit()
+    db.refresh(usuario)
+    return schemas.UsuarioOut.model_validate(usuario)

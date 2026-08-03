@@ -15,6 +15,34 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Convierte el `detail` de FastAPI en una frase legible.
+ *
+ * En los errores de validación (422) `detail` NO es un texto: es una lista de
+ * objetos `{loc, msg, type}`. Asignarla tal cual al mensaje del error hacía
+ * que la interfaz pintara literalmente "[object Object]" donde debía ir el
+ * motivo — que es justo lo que pasaba al registrarse con un correo que el
+ * backend rechaza.
+ */
+function leerDetalle(data, porDefecto) {
+  const detail = data?.detail;
+  if (!detail) return porDefecto;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const frases = detail
+      .map((d) => {
+        if (typeof d === "string") return d;
+        // `loc` viene como ["body", "correo"]: el campo es el último tramo.
+        const campo = Array.isArray(d?.loc) ? d.loc[d.loc.length - 1] : null;
+        const msg = d?.msg || "valor no válido";
+        return campo && campo !== "body" ? `${campo}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    if (frases.length) return frases.join(" · ");
+  }
+  return porDefecto;
+}
+
 async function request(path, { method = "GET", body, isForm = false, auth = true } = {}) {
   const headers = {};
   if (!isForm) headers["Content-Type"] = "application/json";
@@ -32,8 +60,7 @@ async function request(path, { method = "GET", body, isForm = false, auth = true
   if (!res.ok) {
     let detail = res.statusText;
     try {
-      const data = await res.json();
-      detail = data.detail || detail;
+      detail = leerDetalle(await res.json(), detail);
     } catch {
       /* respuesta sin cuerpo JSON */
     }
@@ -44,12 +71,17 @@ async function request(path, { method = "GET", body, isForm = false, auth = true
   return res.json();
 }
 
-async function requestBlob(path) {
+async function requestBlob(path, { method = "GET", body } = {}) {
   const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
   const token = tokenStore.get();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { headers });
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
     // Igual que `request()`: el body de error trae el motivo real (por
     // ejemplo "El archivo del reporte ya no existe en disco"). Quedarse con
@@ -57,8 +89,7 @@ async function requestBlob(path) {
     // genérico que no ayuda a diagnosticar nada.
     let detail = res.statusText;
     try {
-      const data = await res.json();
-      detail = data.detail || detail;
+      detail = leerDetalle(await res.json(), detail);
     } catch {
       /* respuesta sin cuerpo JSON */
     }
@@ -71,6 +102,12 @@ export const api = {
   register: (payload) => request("/api/auth/register", { method: "POST", body: payload, auth: false }),
   login: (payload) => request("/api/auth/login", { method: "POST", body: payload, auth: false }),
   me: () => request("/api/auth/me"),
+  // Recorrido de bienvenida: se marca una vez y no se desmarca (relanzarlo a
+  // mano desde el botón de ayuda no toca la base, ver routers/auth.py).
+  marcarRecorridoVisto: () => request("/api/auth/onboarding/completado", { method: "POST" }),
+  // Narración del recorrido. Devuelve un MP3; un 503 significa "no hay TTS,
+  // usa la voz del navegador", no un fallo real (ver routers/recorrido.py).
+  narrarRecorrido: (texto) => requestBlob("/api/recorrido/narrar", { method: "POST", body: { texto } }),
 
   listLuminarias: () => request("/api/luminarias"),
   createLuminaria: (payload) => request("/api/luminarias", { method: "POST", body: payload }),

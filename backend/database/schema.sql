@@ -73,6 +73,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
     rol               TEXT NOT NULL DEFAULT 'visor'
                       CHECK (rol IN ('administrador', 'operador', 'analista', 'visor')),
     activo            INTEGER NOT NULL DEFAULT 1,
+    -- Recorrido de bienvenida: 0 = nunca lo ha hecho. Vive en la base y no en
+    -- el navegador porque la regla es "un correo que nunca ha entrado a la
+    -- plataforma", no "un navegador que nunca la ha abierto": con
+    -- localStorage, el mismo correo en otro equipo volveria a verlo.
+    -- Para bases ya creadas, la columna la agrega `_migrar_columnas()` en
+    -- db_init.py (un CREATE TABLE IF NOT EXISTS no altera una tabla que ya existe).
+    onboarding_completado INTEGER NOT NULL DEFAULT 0,
     fecha_registro    TEXT NOT NULL,
     updated_at        TEXT NOT NULL
 );

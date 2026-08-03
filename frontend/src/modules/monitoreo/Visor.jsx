@@ -69,7 +69,10 @@ export default function Visor({
           no cabía ni el gesto de "iniciar monitoreo" (el botón se cortaba
           contra el borde). El suelo de 300px sólo muerde en móvil — de `sm`
           en adelante la proporción 16:9 ya da más que eso por sí sola. */}
-      <div className="surface relative aspect-video min-h-[300px] w-full overflow-hidden rounded-[var(--r-xl)] bg-paper-3 sm:min-h-0 lg:aspect-auto lg:h-auto lg:flex-1">
+      <div
+        data-tour="visor"
+        className="surface relative aspect-video min-h-[300px] w-full overflow-hidden rounded-[var(--r-xl)] bg-paper-3 sm:min-h-0 lg:aspect-auto lg:h-auto lg:flex-1"
+      >
         <div className="relative h-full w-full">
           {/* Vídeo en vivo: siempre montado mientras hay cámara, para no
               perder el stream al alternar con la revisión de historial.

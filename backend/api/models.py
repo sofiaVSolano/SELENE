@@ -90,6 +90,9 @@ class Usuario(Base):
     contrasena_hash: Mapped[str] = mapped_column(Text, nullable=False)
     rol: Mapped[str] = mapped_column(RolUsuario, nullable=False, server_default="visor")
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    # Recorrido de bienvenida ya hecho. Se marca una sola vez, al terminarlo o
+    # al saltarlo: a partir de ahi el bombillo solo aparece si lo llaman.
+    onboarding_completado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
     fecha_registro: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     # `onupdate` reemplaza el trigger `trg_usuarios_updated_at` de la version
     # Postgres: SQLite no tiene funciones PL/pgSQL, asi que esto se resuelve

@@ -118,8 +118,11 @@ function tono({
 }
 
 /* ============================ VOCABULARIO SONORO ============================ */
-/* Solo 12 sonidos en toda la app. Restriccion deliberada: un vocabulario
-   corto y coherente se percibe como "diseñado"; uno largo, como ruido.   */
+/* Un vocabulario cerrado. Restriccion deliberada: un repertorio corto y
+   coherente se percibe como "diseñado"; uno largo, como ruido. La regla que
+   lo sostiene no es el numero de entradas sino su origen — TODAS salen de
+   los dos unicos generadores de arriba (`tono` y `ruido`), nunca de un
+   archivo de audio. Por eso todo suena a la misma sala.                  */
 
 export const sonido = {
   /** Click mecanico de interruptor. Distinto tono al encender y al apagar. */
@@ -340,5 +343,45 @@ export const sonido = {
   /** Barrido de escaneo: la luz recorriendo la imagen. */
   barrido() {
     tono({ freq: 240, dur: 0.85, tipo: "sine", gain: 0.028, ataque: 0.2, glide: 700 });
+  },
+
+  /* ---------------------- RECORRIDO DE BIENVENIDA ----------------------
+     Cinco sonidos para la mascota. Salen de los mismos dos generadores que
+     todo lo demas (`tono` y `ruido`), asi que pertenecen al mismo universo
+     sonoro que la landing: nada aqui es un archivo de audio. Todos son mas
+     suaves que la media del vocabulario — acompanan a una voz hablando, y
+     competir con ella los volveria ruido.                                */
+
+  /** La luz se concentra y nace el bombillo: brillo ascendente muy suave. */
+  chispa() {
+    tono({ freq: 520, dur: 0.5, tipo: "sine", gain: 0.05, ataque: 0.12, glide: 1180 });
+    tono({ freq: 790, dur: 0.42, tipo: "sine", gain: 0.028, ataque: 0.16, glide: 1560, detune: 6 });
+    setTimeout(() => ruido({ dur: 0.09, tipo: "highpass", freq: 5200, gain: 0.045, decay: 0.11 }), 90);
+  },
+
+  /** Vuelo entre secciones: un roce de aire, apenas perceptible. */
+  vuelo() {
+    ruido({ dur: 0.34, tipo: "bandpass", freq: rnd(900, 1300), q: 0.7, gain: 0.026, decay: 0.3 });
+    tono({ freq: 300, dur: 0.3, tipo: "sine", gain: 0.02, ataque: 0.1, glide: 440 });
+  },
+
+  /** Senala un elemento: destello corto y claro. */
+  destelloSuave() {
+    tono({ freq: 1180, dur: 0.16, tipo: "sine", gain: 0.038, ataque: 0.012, glide: 1620 });
+    ruido({ dur: 0.05, tipo: "highpass", freq: 6000, gain: 0.03, decay: 0.06 });
+  },
+
+  /** Cambio de seccion: dos notas que resuelven hacia arriba. */
+  transicion() {
+    tono({ freq: 392, dur: 0.22, tipo: "sine", gain: 0.035, ataque: 0.03 });
+    setTimeout(() => tono({ freq: 588, dur: 0.3, tipo: "sine", gain: 0.03, ataque: 0.04 }), 130);
+  },
+
+  /** Despedida: acorde calido que se apaga solo. */
+  despedida() {
+    [392, 494, 588].forEach((f, i) =>
+      setTimeout(() => tono({ freq: f, dur: 0.85, tipo: "sine", gain: 0.032, ataque: 0.09 }), i * 105)
+    );
+    setTimeout(() => ruido({ dur: 0.5, tipo: "highpass", freq: 4200, gain: 0.022, decay: 0.5 }), 300);
   },
 };

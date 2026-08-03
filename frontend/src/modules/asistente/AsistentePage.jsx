@@ -327,6 +327,7 @@ export default function AsistentePage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
                   transition={trans(0.42)}
+                  data-tour="compositor"
                   className="surface specular flex items-end gap-2 rounded-[22px] px-3 py-2.5"
                 >
                   <textarea
@@ -353,6 +354,7 @@ export default function AsistentePage() {
                     }}
                     onMouseEnter={() => sonido.roce()}
                     aria-label="Generar un reporte"
+                    data-tour="boton-reporte"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-linen bg-paper text-ink-3 outline-none transition-colors duration-300 hover:text-ink"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
