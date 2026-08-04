@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { trans } from "../lib/movimiento.js";
 import { sonido } from "../lib/sound.js";
-import Bombillo from "./Bombillo.jsx";
+import Bombillo from "../lum/Bombillo.jsx";
 import { SALUDOS_DE_VUELTA } from "./guion.js";
 
 /**

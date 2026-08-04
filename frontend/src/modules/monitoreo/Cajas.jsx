@@ -173,6 +173,12 @@ export default function Cajas({ ancho, alto, personas = [], elementos = [], clav
             return (
               <motion.g
                 key={`${claveCaptura}-${d.orden}`}
+                /* Una luminaria detectada ES un bombillo de la interfaz: si
+                   se detecta derroche, la fuga de luz sale de estas cajas y
+                   no de un punto inventado (ver `oportunidad/Fuga.jsx`).
+                   Las ventanas no se marcan: por una ventana no se escapa
+                   energía, entra. */
+                data-luz={!esPersona && !esVentana ? "" : undefined}
                 exit={{ opacity: 0 }}
                 transition={trans(DUR.ui)}
               >

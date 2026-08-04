@@ -44,6 +44,10 @@
     --light-i: 1; /* 0..1 intensidad */
     --light-k: 3200; /* kelvin medido */
     --light-rgb: 255 214 170; /* color derivado del kelvin */
+    /* Sobre-intensidad momentánea de la luz ambiente. No la escribe el motor
+       de luz (que trabaja en 0..1) sino los estados en que la sala TIENE que
+       verse más encendida de lo que está — hoy sólo el aviso de derroche. */
+    --luz-extra: 0;
 
     /* Vector sombra: todo el UI proyecta desde la MISMA fuente */
     --sx: calc((0.5 - var(--light-x)) * 2);
@@ -76,8 +80,30 @@
     color-scheme: light;
   }
 
+  /* --- DERROCHE DETECTADO ---------------------------------------------
+     Una sala encendida sin nadie dentro no se anuncia con un banner rojo:
+     la interfaz entera se entibia. Un solo atributo en <html> y el sistema
+     reacciona solo, porque todo hereda de estas cuatro variables — los
+     bordes de CADA elemento salen de `--linen`, los halos de `--halo` y la
+     luz ambiente de `--luz-extra`. No hay una hoja de estilos "de alerta":
+     es el mismo sistema de luz, empujado hacia el ámbar.
+     Lo pone y lo quita `oportunidad/AvisoDeOportunidad.jsx`.            */
+  html[data-derroche="si"] {
+    --linen: #f0d9a6;
+    --paper-2: #fbf3e3;
+    --paper-3: #f6e9d0;
+    --luz-extra: 0.13;
+    --halo: 34;
+  }
+
   * {
     border-color: var(--linen);
+    /* El viraje a ámbar cambia `--linen`, y sin esto los bordes de media
+       aplicación saltarían de golpe mientras el resto de la escena entra
+       con calma. Quien ya define su propia transición (`.surface`,
+       `.modulo`, las utilidades `transition-colors`) la conserva: gana la
+       clase sobre el selector universal. */
+    transition: border-color var(--t-bloom) var(--ease-light);
   }
 
   html {
@@ -112,8 +138,8 @@
     z-index: 0;
     background: radial-gradient(
       60vmax 60vmax at calc(var(--light-x) * 100%) calc(var(--light-y) * 100%),
-      rgb(var(--light-rgb) / calc(var(--light-i) * 0.5)) 0%,
-      rgb(var(--light-rgb) / calc(var(--light-i) * 0.16)) 35%,
+      rgb(var(--light-rgb) / calc((var(--light-i) + var(--luz-extra)) * 0.5)) 0%,
+      rgb(var(--light-rgb) / calc((var(--light-i) + var(--luz-extra)) * 0.16)) 35%,
       transparent 72%
     );
     transition: background var(--t-scene) var(--ease-light);

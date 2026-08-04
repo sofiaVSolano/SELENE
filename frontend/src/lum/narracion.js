@@ -2,8 +2,12 @@ import { api } from "../lib/api.js";
 import { estaSilenciado, suscribirSonido } from "../lib/sound.js";
 
 /**
- * NARRACIÓN DEL RECORRIDO
+ * LA VOZ DE LUM
  * -----------------------------------------------------------------
+ * La usan las dos apariciones de la mascota —el recorrido de bienvenida y
+ * el aviso de derroche— a propósito: si el aviso hablara con otro motor,
+ * Lum tendría dos voces distintas y dejaría de ser el mismo personaje.
+ *
  * Dos motores, una sola interfaz.
  *
  *   1. **TTS de OpenAI** (`POST /api/recorrido/narrar`), el mismo que ya usa

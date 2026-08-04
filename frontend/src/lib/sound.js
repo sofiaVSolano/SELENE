@@ -384,4 +384,75 @@ export const sonido = {
     );
     setTimeout(() => ruido({ dur: 0.5, tipo: "highpass", freq: 4200, gain: 0.022, decay: 0.5 }), 300);
   },
+
+  /* --------------------- AVISO DE DERROCHE (LA FUGA) ---------------------
+     Un solo sonido nuevo, y sostenido: el zumbido de la luminaria que sigue
+     encendida en una sala vacia. No es una alarma — es el ruido real de algo
+     que esta consumiendo, que es justo lo que la escena quiere que se
+     perciba.                                                              */
+
+  /**
+   * Zumbido electrico muy suave. 50 Hz (la frecuencia de la red) y su
+   * armonico, un pelo desafinados para que batan entre si, filtrados por
+   * debajo de 400 Hz para que no compita con la voz de Lum hablando encima.
+   * Un LFO lentisimo lo hace respirar: un zumbido perfectamente estable
+   * suena a sintetizador, no a lampara.
+   *
+   * Devuelve la funcion para apagarlo, igual que `rodillo` y `filamento`.
+   */
+  zumbido() {
+    const ac = motor();
+    if (!ac) return () => {};
+
+    const filtro = ac.createBiquadFilter();
+    filtro.type = "lowpass";
+    filtro.frequency.value = 400;
+    filtro.Q.value = 0.7;
+
+    const g = ac.createGain();
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    // Entra en casi un segundo: si apareciera de golpe se leeria como error.
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.9);
+
+    const osciladores = [
+      { freq: 50.4, tipo: "sine", nivel: 1 },
+      { freq: 100.7, tipo: "sine", nivel: 0.8 },
+      { freq: 151, tipo: "triangle", nivel: 0.28 }, // el armonico "sucio"
+    ].map(({ freq, tipo, nivel }) => {
+      const osc = ac.createOscillator();
+      osc.type = tipo;
+      osc.frequency.setValueAtTime(freq, t);
+      const suyo = ac.createGain();
+      suyo.gain.value = nivel;
+      osc.connect(suyo).connect(g);
+      osc.start(t);
+      return osc;
+    });
+
+    // El zumbido respira: +-12 % de volumen cada segundo y medio.
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.68;
+    lfoGain.gain.value = 0.012;
+    lfo.connect(lfoGain).connect(g.gain);
+    lfo.start(t);
+
+    g.connect(filtro).connect(master);
+
+    return () => {
+      const fin = ac.currentTime;
+      g.gain.cancelScheduledValues(fin);
+      g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), fin);
+      // Se va en 0,7 s: la escena termina calmandose, no cortandose.
+      g.gain.exponentialRampToValueAtTime(0.0001, fin + 0.7);
+      try {
+        osciladores.forEach((osc) => osc.stop(fin + 0.8));
+        lfo.stop(fin + 0.8);
+      } catch {
+        /* ya detenido */
+      }
+    };
+  },
 };

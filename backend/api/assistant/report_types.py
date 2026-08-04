@@ -31,12 +31,15 @@ TIPOS_REPORTE: dict[ClaveReporte, DefinicionTipoReporte] = {
         "tipo_reporte_enum": "consumo",
     },
     "plan_ahorro": {
-        "etiqueta": "Plan de ahorro energetico",
+        # Las etiquetas se imprimen como TITULO del PDF y se muestran en el
+        # frontend, asi que van con tildes (a diferencia de los comentarios y
+        # los nombres del codigo, que siguen sin ellas).
+        "etiqueta": "Plan de ahorro energético",
         "descripcion_para_llm": "El usuario pregunto como ahorrar energia, pidio recomendaciones o un plan de ahorro.",
         "tipo_reporte_enum": "patrones",
     },
     "general": {
-        "etiqueta": "Resumen de la conversacion",
+        "etiqueta": "Resumen de la conversación",
         "descripcion_para_llm": "Resumen general de la conversacion; usar si no aplica ninguno de los otros tipos, o como complemento.",
         "tipo_reporte_enum": "general",
     },

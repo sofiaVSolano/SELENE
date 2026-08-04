@@ -26,6 +26,12 @@ services:
       DATABASE_URL: sqlite:////app/data/selene.db
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
       ENERGY_MODEL_DIR: /energy_model
+      # Sin esto el contenedor vive en UTC y `datetime.now()` devuelve cinco
+      # horas de mas: el PDF salia fechado "04/08/2026 04:56" cuando en
+      # Tunja eran las 23:56 del 3. Los instantes que se guardan en la base
+      # siguen siendo UTC con tzinfo (ver models._ahora_utc); esto solo
+      # arregla la hora LOCAL que se imprime y se muestra.
+      TZ: America/Bogota
     volumes:
       - C:\Users\sofia\OneDrive\ConsumoEnergeticoComp\ProyectoPrediccionEnergetica:/energy_model:ro
       # La base SQLite vive en /app/data, NO en /app/database: esa ultima

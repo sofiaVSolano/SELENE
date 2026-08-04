@@ -4,10 +4,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLight } from "../light/LightContext.jsx";
 import { CURVA, menosMovimiento, RESORTE, trans } from "../lib/movimiento.js";
 import { sonido } from "../lib/sound.js";
-import Bombillo from "./Bombillo.jsx";
+import Bombillo from "../lum/Bombillo.jsx";
+import { crearNarrador } from "../lum/narracion.js";
+import Particulas from "../lum/Particulas.jsx";
 import Controles from "./Controles.jsx";
 import { PASOS, variante } from "./guion.js";
-import { crearNarrador } from "./narracion.js";
 
 /**
  * EL RECORRIDO
@@ -114,45 +115,6 @@ function Subtitulo({ texto, destacar = [] }) {
         )
       )}
     </p>
-  );
-}
-
-/** Partículas de luz: nacen del centro y se dispersan, o al revés. */
-function Particulas({ modo = "salida", cantidad = 18 }) {
-  const semillas = useMemo(
-    () =>
-      Array.from({ length: cantidad }, (_, i) => ({
-        id: i,
-        ang: (i / cantidad) * Math.PI * 2 + Math.random() * 0.4,
-        dist: 34 + Math.random() * 46,
-        escala: 0.4 + Math.random() * 0.8,
-        retraso: Math.random() * 0.22,
-      })),
-    [cantidad]
-  );
-
-  return (
-    <div className="pointer-events-none absolute left-1/2 top-1/2" aria-hidden>
-      {semillas.map((s) => {
-        const dx = Math.cos(s.ang) * s.dist;
-        const dy = Math.sin(s.ang) * s.dist;
-        const desde = modo === "entrada" ? { x: dx, y: dy, opacity: 0, scale: 0 } : { x: 0, y: 0, opacity: 1, scale: s.escala };
-        const hasta = modo === "entrada" ? { x: 0, y: 0, opacity: [0, 1, 0], scale: s.escala } : { x: dx, y: dy, opacity: 0, scale: 0 };
-        return (
-          <motion.span
-            key={s.id}
-            className="absolute block h-[3px] w-[3px] rounded-full"
-            style={{
-              background: "rgb(var(--light-rgb))",
-              boxShadow: "0 0 6px 2px rgb(var(--light-rgb) / 0.8)",
-            }}
-            initial={desde}
-            animate={hasta}
-            transition={{ duration: 0.9, delay: s.retraso, ease: CURVA.luz }}
-          />
-        );
-      })}
-    </div>
   );
 }
 

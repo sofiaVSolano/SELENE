@@ -134,6 +134,7 @@ def generar_reporte(
             limite_consultas=payload.limite_consultas,
             titulo=payload.titulo,
             instrucciones=payload.instrucciones,
+            figuras=[f.model_dump() for f in payload.figuras],
         )
     except AssistantConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

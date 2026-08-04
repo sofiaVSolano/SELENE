@@ -36,6 +36,9 @@ services:
       DATABASE_URL: sqlite:////app/data/selene.db
       CORS_ORIGINS: '["http://${SERVER_HOST:-104.225.223.220}:${FRONTEND_PORT:-3033}"]'
       ENERGY_MODEL_DIR: /energy_model
+      # Hora local para lo que se imprime en los reportes (ver el mismo
+      # comentario en docker-compose.yml). Lo persistido sigue en UTC.
+      TZ: ${TZ:-America/Bogota}
     volumes:
       - ${ENERGY_MODEL_HOST_DIR:-./energy_model}:/energy_model:ro
       - ./backend/database/data:/app/data

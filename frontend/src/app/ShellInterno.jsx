@@ -8,6 +8,7 @@ import { RESORTE } from "../lib/movimiento.js";
 import { sonido } from "../lib/sound.js";
 import { MonitoreoProvider } from "../modules/monitoreo/MonitoreoContext.jsx";
 import { RecorridoProvider, useRecorrido } from "../onboarding/RecorridoContext.jsx";
+import AvisoDeOportunidad from "../oportunidad/AvisoDeOportunidad.jsx";
 
 /**
  * SHELL INTERNO
@@ -137,6 +138,7 @@ function BotonAyuda() {
       title="Volver a ver el recorrido"
       aria-label="Volver a ver el recorrido de bienvenida"
       data-tour="ayuda"
+      data-luz
       className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-linen text-ink-3 outline-none transition-colors duration-300 hover:border-ink-4 hover:text-ink disabled:opacity-40"
     >
       {/* Un bombillo diminuto: el mismo objeto que va a aparecer al pulsarlo */}
@@ -156,6 +158,10 @@ function Interior({ children }) {
   return (
     <>
       <PulsoDeLuz />
+      {/* El aviso de derroche vive aquí por lo mismo que el pulso: la alerta
+          puede saltar mientras el usuario está en el asistente o en el
+          historial, y la escena tiene que encontrarlo donde esté. */}
+      <AvisoDeOportunidad />
 
       {/* `dvh` y no `vh`: en moviles la barra de direcciones entra y sale, y
           con `100vh` la barra inferior de navegacion queda debajo del borde
@@ -164,7 +170,11 @@ function Interior({ children }) {
         {/* La nav va primero en el DOM (orden de tabulacion), pero en movil se
             dibuja abajo: `order` la baja sin tocar el orden de lectura. */}
         <nav className="relative z-30 order-2 flex w-full shrink-0 items-center justify-between gap-2 border-t border-linen px-3 py-2 lg:order-1 lg:w-[76px] lg:flex-col lg:border-r lg:border-t-0 lg:px-0 lg:py-6">
-          <NavLink to="/" aria-label="Inicio" className="shrink-0 outline-none">
+          {/* `data-luz` marca los objetos luminosos de la interfaz. Cuando se
+              detecta derroche, de cada uno de ellos empiezan a salir
+              partículas hacia arriba (ver `oportunidad/Fuga.jsx`): la marca
+              es un punto de luz con rayos, así que también se fuga. */}
+          <NavLink to="/" aria-label="Inicio" data-luz className="shrink-0 outline-none">
             <Marca tamano={24} conTexto={false} className="text-ink" />
           </NavLink>
 

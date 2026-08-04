@@ -17,9 +17,10 @@ import { sonido } from "../../lib/sound.js";
  * VISTA · ALERTAS
  * -----------------------------------------------------------------
  * Cada vez que `useMonitoreo` detecta una sala vacía con la luz artificial
- * encendida, SELENE avisa en voz alta EN EL MOMENTO (ver `lib/voz.js`) y
- * queda un registro aquí: día, hora, la imagen exacta que disparó la
- * alerta y la sala. La voz es el instante; esta galería es la memoria.
+ * encendida, Lum aparece y lo dice EN EL MOMENTO (ver
+ * `oportunidad/AvisoDeOportunidad.jsx`) y queda un registro aquí: día,
+ * hora, la imagen exacta que disparó la alerta y la sala. La escena es el
+ * instante; esta galería es la memoria.
  *
  * Misma gramática visual que las capturas —tarjeta que cobra vida al
  * acercarse— porque las tres pestañas del historial tienen que sentirse
@@ -264,7 +265,7 @@ export default function VistaAlertas() {
               : "Ninguna alerta encaja con ese filtro."}
           </p>
           {alertas.length === 0 && (
-            <p className="annot">selene avisa sola, en voz, cuando eso pase</p>
+            <p className="annot">lum aparece solo y lo dice cuando eso pase</p>
           )}
         </motion.div>
       ) : (

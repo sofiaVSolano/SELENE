@@ -4,6 +4,7 @@ import Boton from "../../components/ui/Boton.jsx";
 import VisorDocumento from "../../components/ui/VisorDocumento.jsx";
 import { emitirPulso } from "../../light/pulso.js";
 import { api, ApiError } from "../../lib/api.js";
+import { figurasParaReporte } from "../../lib/figuras.js";
 import { CURVA, RESORTE, trans } from "../../lib/movimiento.js";
 import { sonido } from "../../lib/sound.js";
 
@@ -67,6 +68,11 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
   const [pdf, setPdf] = useState(null); // { blob, url }
   const [mostrandoPdf, setMostrandoPdf] = useState(false);
 
+  /* Las figuras se leen UNA vez, al abrir la impresora: si se recalcularan en
+     cada render, una captura nueva entrando a media impresión cambiaría el
+     documento a mitad de camino. */
+  const [figuras] = useState(() => figurasParaReporte());
+
   const detenerRodillo = useRef(null);
   const vivo = useRef(true);
 
@@ -107,6 +113,9 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
       const r = await api.generarReporteAsistente({
         clave_reporte: clave,
         ...(clave === "detallado" ? { instrucciones: instrucciones.trim() } : {}),
+        // Las imágenes de detección viven en el navegador, así que la sección
+        // de evidencia visual del PDF sólo existe si se las manda aquí.
+        figuras,
       });
       const restante = Math.max(0, MIN_MS - (performance.now() - inicio));
       await new Promise((res) => window.setTimeout(res, restante));
@@ -440,10 +449,17 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
                     </button>
                   ))}
                 </div>
-                <div className="flex justify-center">
+                <div className="flex flex-col items-center gap-3">
                   <Boton variante="luz" onClick={imprimir} className="px-8 py-3">
                     imprimir
                   </Boton>
+                  {/* Que el usuario sepa que va a salir en el PDF antes de
+                      pedirlo: las figuras se adjuntan solas. */}
+                  <p className="annot text-center text-[9px]">
+                    {figuras.length
+                      ? `se adjuntarán ${figuras.length} ${figuras.length === 1 ? "figura" : "figuras"} de detección`
+                      : "todavía no hay capturas para la evidencia visual"}
+                  </p>
                 </div>
               </motion.div>
             )}

@@ -4,7 +4,7 @@ import { guardarAlerta } from "../../lib/alertasAlmacen.js";
 import { guardarEjecucion } from "../../lib/almacen.js";
 import { api } from "../../lib/api.js";
 import { sonido } from "../../lib/sound.js";
-import { hablarAlerta } from "../../lib/voz.js";
+import { emitirOportunidad } from "../../oportunidad/bus.js";
 
 const ANCHO_INFERENCIA = 960; // se reescala antes de enviar: los modelos son pesados
 // 480 y no 168: la misma miniatura se usa tanto para la tarjeta de la
@@ -151,9 +151,15 @@ export function useMonitoreo() {
   /**
    * Reporta la anomalía al backend (que arma el mensaje y la persiste como
    * Evento + Recomendacion), la guarda en la galería local de alertas con su
-   * imagen, y hace que SELENE la diga en voz alta. Si no hay luminaria
+   * imagen, y anuncia el hecho para que la interfaz monte la escena del
+   * aviso (`oportunidad/AvisoDeOportunidad.jsx`). Si no hay luminaria
    * elegida no hay a quién reportarle ni qué zona anunciar, así que no se
    * dispara nada — igual que con el consumo estimado.
+   *
+   * Aquí NO se decide nada visual ni sonoro: este hook mide, y quien avisa
+   * es la escena. Antes se disparaba el sonido y una voz del navegador desde
+   * estas mismas líneas, y esa mezcla de responsabilidades era la razón por
+   * la que la alerta no podía ser más que un pitido.
    */
   const dispararAlerta = useCallback(
     async (captura, segundosVacia) => {
@@ -166,6 +172,8 @@ export function useMonitoreo() {
         });
 
         const luminaria = luminarias.find((l) => l.id_luminaria === idLuminaria);
+        const a = captura.analisis;
+        const segundos = Math.round(segundosVacia);
 
         guardarAlerta({
           idEvento: String(r.id_evento),
@@ -175,14 +183,47 @@ export function useMonitoreo() {
           luminaria: luminaria?.nombre || "",
           mensaje: r.mensaje,
           prioridad: r.prioridad,
-          segundosSinOcupacion: Math.round(segundosVacia),
-          porcentajeArtificial: captura.analisis.porcentaje_artificial ?? 0,
+          segundosSinOcupacion: segundos,
+          porcentajeArtificial: a.porcentaje_artificial ?? 0,
+          // Se guarda para que el pie de figura del reporte pueda decir
+          // cuántas luminarias había encendidas (ver `lib/figuras.js`).
+          luminariasVisibles: a.num_luminarias ?? 0,
         });
 
-        // La sala reacciona antes de que hable: un aviso corto, y luego la voz.
-        sonido.aviso();
-        emitirPulso({ fuerza: 0.4, tipo: "fallo", origen: { x: 0.36, y: 0.44 } });
-        window.setTimeout(() => hablarAlerta(r.mensaje), 380);
+        /* Las cifras de la tarjeta salen del módulo energético, las mismas
+           que muestra el panel lateral — dos números distintos para el mismo
+           hecho en dos sitios de la app serían un error de producto, no un
+           detalle. Si el módulo no pudo estimar (devuelve null cuando falla
+           el paso de LightGBM), se cae a la potencia declarada de la
+           luminaria por el tiempo que la sala lleva vacía: peor estimación,
+           pero auditable, y la tarjeta lo dice. */
+        const potenciaW = Number(luminaria?.potencia_w) || 0;
+        const aproximado = a.consumo_estimado_kwh === null || a.consumo_estimado_kwh === undefined;
+        const consumoWh = aproximado
+          ? potenciaW * (segundos / 3600)
+          : a.consumo_estimado_kwh * 1000;
+        const ahorroWh =
+          a.ahorro_estimado_kwh === null || a.ahorro_estimado_kwh === undefined
+            ? // Sala vacía: no hay nada que iluminar, así que todo lo que se
+              // está gastando es ahorrable.
+              consumoWh
+            : a.ahorro_estimado_kwh * 1000;
+
+        emitirOportunidad({
+          id: String(r.id_evento),
+          ts: r.fecha_hora,
+          zona: luminaria?.zona?.nombre || "sin zona",
+          luminaria: luminaria?.nombre || "",
+          imagen: captura.miniatura,
+          prioridad: r.prioridad,
+          segundos,
+          porcentajeArtificial: a.porcentaje_artificial ?? 0,
+          luminariasVisibles: a.num_luminarias ?? 0,
+          potenciaW,
+          consumoWh,
+          ahorroWh,
+          aproximado,
+        });
       } catch {
         /* una alerta perdida no debe romper el monitoreo en curso */
       }

@@ -38,6 +38,14 @@ const ANIMOS = {
   explicando: { boca: 0.5, ojos: 1, halo: 0.85, cejas: 0.05 },
   atento: { boca: 0.18, ojos: 1.08, halo: 0.78, cejas: 0.3 },
   despidiendo: { boca: 1, ojos: 0.5, halo: 1.25, cejas: 0.2 },
+  /* `boca` negativa curva el filamento hacia arriba: la única forma de que
+     Lum dude sin dibujarle una boca aparte. Se usa cuando encuentra algo
+     que no cuadra —una sala vacía con la luz puesta— y por eso el halo baja
+     un poco: está pensando, no alarmando. */
+  pensativo: { boca: -0.3, ojos: 0.84, halo: 0.62, cejas: 0.45 },
+  /* Celebrando: sonrisa más ancha que `contento` y ojos entrecerrados de
+     gusto, con el halo por encima de 1 (la alegría se ve antes de leerse). */
+  celebrando: { boca: 1.3, ojos: 0.52, halo: 1.4, cejas: 0.18 },
 };
 
 export default function Bombillo({
@@ -204,7 +212,12 @@ export default function Bombillo({
         {/* Brillo especular: le da volumen de vidrio, no de círculo plano */}
         <ellipse cx="38" cy="32" rx="8.5" ry="6" fill="#fff" opacity={0.5 * formacion} transform="rotate(-28 38 32)" />
 
-        {/* --- Ojos --- */}
+        {/* --- Ojos ---
+            `initial` no es decorativo: sin un valor de partida framer intenta
+            interpolar `ry` desde el atributo que el elemento no tiene todavía
+            y escribe literalmente "undefined" en el SVG (el navegador lo
+            rechaza y lo grita por consola). De paso hace lo que queremos: los
+            ojos se abren, no aparecen abiertos. */}
         <motion.g style={{ x: px, y: py }}>
           {[38, 62].map((cx) => (
             <motion.ellipse
@@ -213,6 +226,7 @@ export default function Bombillo({
               cy={44}
               rx={4.4}
               fill="var(--ink)"
+              initial={{ ry: 0.35 }}
               animate={{ ry: 5.6 * ojoAbierto + 0.35 }}
               transition={{ duration: 0.09, ease: "easeOut" }}
             />
@@ -242,8 +256,16 @@ export default function Bombillo({
             animate={{ opacity: objetivo.cejas * 2.2 * formacion }}
             transition={{ duration: 0.35 }}
           >
-            <motion.path animate={{ d: `M33 ${36 - objetivo.cejas * 3} Q38 ${33 - objetivo.cejas * 4} 43 ${36 - objetivo.cejas * 3}` }} />
-            <motion.path animate={{ d: `M57 ${36 - objetivo.cejas * 3} Q62 ${33 - objetivo.cejas * 4} 67 ${36 - objetivo.cejas * 3}` }} />
+            {/* Mismo motivo que en los ojos: se parte de la ceja en reposo
+                (cejas = 0) y se levanta hasta la del ánimo. */}
+            <motion.path
+              initial={{ d: "M33 36 Q38 33 43 36" }}
+              animate={{ d: `M33 ${36 - objetivo.cejas * 3} Q38 ${33 - objetivo.cejas * 4} 43 ${36 - objetivo.cejas * 3}` }}
+            />
+            <motion.path
+              initial={{ d: "M57 36 Q62 33 67 36" }}
+              animate={{ d: `M57 ${36 - objetivo.cejas * 3} Q62 ${33 - objetivo.cejas * 4} 67 ${36 - objetivo.cejas * 3}` }}
+            />
           </motion.g>
         )}
 
@@ -257,6 +279,8 @@ export default function Bombillo({
           style={{ filter: "drop-shadow(0 0 4px rgb(var(--light-rgb) / 0.9))" }}
         >
           <motion.path
+            // Arranca recto (el filamento frío) y se curva hacia el ánimo.
+            initial={{ d: "M40 57 Q50 57 60 57" }}
             animate={{
               // La curvatura de la sonrisa sale del ánimo; al hablar, oscila.
               d: `M40 57 Q50 ${57 + objetivo.boca * 9} 60 57`,

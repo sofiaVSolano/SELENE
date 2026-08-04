@@ -46,6 +46,7 @@ function escribir(lista) {
  * @param {"alta"|"media"} datos.prioridad
  * @param {number} datos.segundosSinOcupacion
  * @param {number} datos.porcentajeArtificial
+ * @param {number} [datos.luminariasVisibles] cuántas detectó el modelo
  */
 export function guardarAlerta(datos) {
   const lista = leerCrudo();

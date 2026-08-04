@@ -101,11 +101,17 @@ def generar_reporte_detallado(contexto_datos: str, instrucciones: str, transcrip
 
     JSON mode es obligatorio, no cosmetico: sin una forma fija, un LLM libre
     para redactar como quiera llega a un formato de reporte distinto en cada
-    llamada, imposible de dibujar de forma consistente en PDF (ver
-    `pdf_renderer.render_pdf`, que espera `{"titulo", "parrafos"|"tabla"}`
-    por seccion). `reports._sanear_secciones` valida el resultado igual,
-    porque un LLM puede devolver JSON valido con una forma parecida pero no
-    exacta."""
+    llamada, imposible de dibujar de forma consistente en PDF (ver el
+    vocabulario de bloques en `pdf_renderer.py`).
+    `reports._sanear_secciones` valida el resultado igual, porque un LLM
+    puede devolver JSON valido con una forma parecida pero no exacta.
+
+    **Lo que el modelo NO decide: las graficas.** Puede pedir un `enfoque`
+    (consumo / ocupacion / iluminacion), y ese enfoque reordena las tarjetas
+    y elige que graficas se dibujan, pero las series salen siempre de la base
+    de datos (`report_data`). Dejar que un LLM escriba los puntos de una
+    curva es pedirle que invente datos con apariencia de medicion; que elija
+    el angulo del reporte es justo lo que si sabe hacer."""
     system = f"""Eres el redactor de reportes de SELENE, un sistema de gestion energetica que combina \
 vision por computador con un modelo de prediccion de consumo ya entrenado. Vas a escribir un reporte \
 DETALLADO en espanol, basado EXCLUSIVAMENTE en el CONTEXTO DE DATOS de abajo.
@@ -123,16 +129,35 @@ una plantilla generica:
 Responde SOLO un objeto JSON con esta forma exacta (nada de texto fuera del JSON):
 {{
   "periodo": "string: el rango de fechas o momento que cubre el reporte",
+  "enfoque": "consumo" | "ocupacion" | "iluminacion" | "general",
   "resumen": "string: 1 a 2 parrafos de resumen ejecutivo",
   "secciones": [
     {{"titulo": "string", "parrafos": ["string", "..."]}},
+    {{"titulo": "string", "renglones": [["etiqueta", "valor"], ["etiqueta", "valor"]]}},
     {{"titulo": "string", "tabla": [["Encabezado1", "Encabezado2"], ["fila1col1", "fila1col2"]]}}
   ]
 }}
 
-Entre 3 y 8 secciones. Usa "tabla" para series numericas o comparaciones (se leen mejor que en \
-parrafos); usa "parrafos" para el analisis y las conclusiones. Toda tabla debe traer su fila de \
-encabezado como primer elemento.
+Entre 3 y 6 secciones.
+
+"enfoque" es importante: dice de que habla sobre todo lo que pidio el usuario, y con eso el reporte \
+reordena sus indicadores y elige sus graficas. Usa "ocupacion" si pregunto por personas, aforo o uso \
+del espacio; "iluminacion" si pregunto por luz natural, ventanas o luminarias; "consumo" si pregunto \
+por kWh, ahorro, CO2 o el recibo; "general" solo si de verdad no predomina ninguno.
+
+Formas disponibles para cada seccion, en orden de preferencia:
+- "parrafos": el analisis y las conclusiones. Es lo que mejor haces; que sea la mayoria.
+- "renglones": pares etiqueta/valor (dos columnas exactas). Para cifras sueltas que acompanan al \
+texto. Se dibujan como una lista elegante, no como una tabla.
+- "tabla": SOLO cuando de verdad haya que leer celda por celda (un registro con hora, sala y \
+descripcion). Toda tabla lleva su fila de encabezado como primer elemento. Si dudas entre tabla y \
+renglones, elige renglones.
+
+NO devuelvas graficas ni series de puntos: las tarjetas de indicadores y las graficas las dibuja \
+SELENE con los datos reales de la base, y aparecen automaticamente antes de tus secciones. No \
+repitas en una tabla lo que ya dice una tarjeta (consumo total, ahorro potencial, CO2, personas \
+promedio, luminarias, ventanas, indice de eficiencia): da por hecho que el lector ya los vio y \
+dedicate a explicar por que son asi y que conviene hacer.
 
 === CONTEXTO DE DATOS ===
 {contexto_datos}"""

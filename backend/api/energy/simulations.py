@@ -117,6 +117,13 @@ def _ejecutar(definicion: DefinicionSimulacion, escenario: EscenarioVision, pred
         escenario_original={
             "personas_detectadas": escenario.personas_detectadas,
             "num_luminarias": escenario.num_luminarias,
+            # `num_ventanas` no lo usa la simulacion, pero este dict es el
+            # UNICO sitio donde queda persistido el escenario de vision tal
+            # como lo vio la camara, y los reportes de iluminacion necesitan
+            # saber cuantas ventanas habia (ver
+            # `historical.resumen_iluminacion`). Es aditivo: las filas
+            # anteriores simplemente no lo traen.
+            "num_ventanas": escenario.num_ventanas,
             "porcentaje_natural": escenario.porcentaje_natural,
             "porcentaje_artificial": escenario.porcentaje_artificial,
             "tipo_iluminacion": escenario.tipo_iluminacion,

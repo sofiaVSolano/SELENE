@@ -214,6 +214,143 @@ def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | 
     return sorted(resultado, key=lambda r: r["consumo_estimado_kwh_total"], reverse=True)
 
 
+def resumen_ocupacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> dict:
+    """Ocupacion observada en el periodo, directo de `detecciones_ocupacion`.
+
+    Es la unica tabla con una fila por FOTOGRAMA analizado (las del modulo
+    energetico tienen una por reporte), asi que es la fuente correcta para
+    "cuanto tiempo estuvo la sala ocupada" y no una derivada de consumo.
+    `fraccion_ocupada` se calcula sobre numero de muestras y no sobre tiempo:
+    los fotogramas se analizan a intervalo regular, asi que la proporcion de
+    muestras ocupadas es una buena aproximacion de la proporcion de tiempo, y
+    no exige suponer cuanto duro cada tramo.
+    """
+    hasta = hasta or dt.datetime.now(dt.timezone.utc)
+    filas = db.scalars(
+        select(models.DeteccionOcupacion)
+        .where(
+            models.DeteccionOcupacion.fecha_hora >= desde,
+            models.DeteccionOcupacion.fecha_hora <= hasta,
+        )
+        .order_by(models.DeteccionOcupacion.fecha_hora.asc())
+    ).all()
+
+    personas = [int(f.personas_detectadas or 0) for f in filas]
+    ocupadas = [p for p in personas if p > 0]
+
+    return {
+        "muestras": len(filas),
+        "muestras_ocupadas": len(ocupadas),
+        "muestras_vacias": len(filas) - len(ocupadas),
+        "fraccion_ocupada": round(len(ocupadas) / len(filas), 4) if filas else 0.0,
+        "personas_promedio": _promedio(personas) or 0.0,
+        # Promedio contando SOLO los fotogramas con gente: "cuanta gente hay
+        # cuando hay gente", que es lo que describe el uso real del espacio.
+        "personas_promedio_ocupada": _promedio(ocupadas) or 0.0,
+        "personas_max": max(personas, default=0),
+        "primera": filas[0].fecha_hora if filas else None,
+        "ultima": filas[-1].fecha_hora if filas else None,
+    }
+
+
+def ocupacion_por_hora(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> list[dict]:
+    """Personas promedio por hora del dia. Es la serie que dibuja la curva de
+    ocupacion del reporte; solo devuelve las horas con al menos una muestra
+    (dibujar ceros en horas que nadie midio seria inventar dato)."""
+    hasta = hasta or dt.datetime.now(dt.timezone.utc)
+    filas = db.scalars(
+        select(models.DeteccionOcupacion)
+        .where(
+            models.DeteccionOcupacion.fecha_hora >= desde,
+            models.DeteccionOcupacion.fecha_hora <= hasta,
+        )
+        .order_by(models.DeteccionOcupacion.fecha_hora.asc())
+    ).all()
+
+    por_hora: dict[int, list[int]] = {}
+    for f in filas:
+        por_hora.setdefault(f.fecha_hora.hour, []).append(int(f.personas_detectadas or 0))
+
+    return [
+        {
+            "hora": hora,
+            "etiqueta": f"{hora:02d}:00",
+            "personas_promedio": _promedio(valores) or 0.0,
+            "muestras": len(valores),
+        }
+        for hora, valores in sorted(por_hora.items())
+    ]
+
+
+def resumen_iluminacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1500) -> dict:
+    """Reparto natural/artificial y conteo de elementos, leidos de
+    `simulaciones.escenario_original`.
+
+    Es el unico sitio donde queda persistido el escenario de vision tal como
+    lo vio la camara (`predicciones_consumo.variables_entrada` guarda las
+    features del modelo, que no incluyen el reparto de luz). Hay VARIAS filas
+    de simulacion por deteccion —una por tipo de plan— con el mismo escenario
+    original, asi que se agrupa por `id_deteccion` y se toma una sola: sin
+    eso, un escenario con tres simulaciones pesaria el triple en el promedio.
+    """
+    hasta = hasta or dt.datetime.now(dt.timezone.utc)
+    filas = db.scalars(
+        select(models.Simulacion)
+        .where(models.Simulacion.fecha >= desde, models.Simulacion.fecha <= hasta)
+        .order_by(models.Simulacion.fecha.asc())
+        .limit(limite)
+    ).all()
+
+    escenarios: dict[object, dict] = {}
+    for i, fila in enumerate(filas):
+        escenario = fila.escenario_original or {}
+        if not isinstance(escenario, dict):
+            continue
+        # Sin `id_deteccion` (escenario analizado sin persistir la deteccion)
+        # se usa el indice para no descartar la fila.
+        escenarios.setdefault(fila.id_deteccion if fila.id_deteccion is not None else f"s{i}", escenario)
+
+    valores = list(escenarios.values())
+    if not valores:
+        return {
+            "muestras": 0,
+            "porcentaje_natural_promedio": 0.0,
+            "porcentaje_artificial_promedio": 0.0,
+            "luminarias_promedio": None,
+            "ventanas_promedio": None,
+            "por_tipo": [],
+        }
+
+    def _campo(nombre: str) -> list[float]:
+        return [float(v[nombre]) for v in valores if v.get(nombre) is not None]
+
+    naturales = _campo("porcentaje_natural")
+    artificiales = _campo("porcentaje_artificial")
+    luminarias = _campo("num_luminarias")
+    # `num_ventanas` se agrego al escenario persistido despues de las primeras
+    # versiones: las filas viejas no lo traen y quedan fuera del promedio en
+    # vez de contar como cero.
+    ventanas = _campo("num_ventanas")
+
+    conteo_tipos: dict[str, int] = {}
+    for v in valores:
+        tipo = str(v.get("tipo_iluminacion") or "sin clasificar")
+        conteo_tipos[tipo] = conteo_tipos.get(tipo, 0) + 1
+
+    return {
+        "muestras": len(valores),
+        "porcentaje_natural_promedio": _promedio(naturales) or 0.0,
+        "porcentaje_artificial_promedio": _promedio(artificiales) or 0.0,
+        "luminarias_promedio": _promedio(luminarias),
+        "ventanas_promedio": _promedio(ventanas),
+        "por_tipo": sorted(
+            ({"tipo": tipo, "muestras": n} for tipo, n in conteo_tipos.items()),
+            key=lambda x: x["muestras"],
+            reverse=True,
+        ),
+    }
+
+
 def comparar_por_simulacion(db: Session, limite: int = 500) -> list[dict]:
     """Ahorro promedio observado por tipo de simulacion (cubre, de forma
     indirecta, la comparacion pedida por % de luz natural y por cantidad de
