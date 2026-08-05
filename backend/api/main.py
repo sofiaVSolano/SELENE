@@ -7,6 +7,7 @@ Ejecutar desde `backend/` con:
 from __future__ import annotations
 
 import logging
+import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,9 +59,20 @@ def _startup() -> None:
     aplicar_schema()
     sembrar_usuario_demo()
 
-    # Carga los modelos de vision UNA vez al arrancar (no en la primera
-    # peticion), para que el dashboard no espere el costo de inicializacion
-    # de CUDA/pesos en el primer escaneo.
+    # La precarga de modelos va en un hilo aparte A PROPOSITO: uvicorn no
+    # acepta ni una conexion hasta que este startup retorna, y cargar los dos
+    # checkpoints de deteccion + el modelo energetico tarda de decenas de
+    # segundos a minutos en una VM sin GPU. Hacerlo aqui de forma sincrona
+    # dejaba el puerto publicado pero sin nadie escuchando detras, y el login
+    # respondia "502 Bad Gateway" hasta que terminaba la carga.
+    #
+    # El costo de inicializacion se sigue pagando una sola vez y fuera de la
+    # primera peticion real (que era el objetivo original): simplemente ocurre
+    # en paralelo mientras el usuario entra, en vez de bloquear el arranque.
+    threading.Thread(target=_precargar_modelos, name="warmup", daemon=True).start()
+
+
+def _precargar_modelos() -> None:
     from . import detection_service
     from .energy import model_loader as energy_model_loader
 

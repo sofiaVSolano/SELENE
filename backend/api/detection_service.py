@@ -46,30 +46,44 @@ def _models_config() -> dict:
         return yaml.safe_load(fh)
 
 
-@functools.lru_cache(maxsize=1)
+# El lock envuelve la LLAMADA, no el cuerpo cacheado: `lru_cache` protege su
+# diccionario interno pero NO sostiene ningun lock mientras ejecuta la funcion,
+# asi que dos hilos que fallan la cache a la vez construyen AMBOS el detector.
+# Con la precarga corriendo en segundo plano (ver api/main.py) eso deja de ser
+# teorico: una peticion a /api/deteccion durante el arranque cargaria un
+# segundo FasterRCNN en memoria, que es justo lo que tumba una VM chica.
 def get_person_detector() -> PersonDetector:
     with _load_lock:
-        cfg = _models_config()["person_detector"]
-        detector = PersonDetector(
-            weights_path=settings.project_root / cfg["weights_path"],
-            device=settings.device,
-            conf_threshold=cfg["conf_threshold"],
-        )
-        detector.warmup()
-        return detector
+        return _construir_person_detector()
+
+
+def get_lighting_detector() -> LightingDetector:
+    with _load_lock:
+        return _construir_lighting_detector()
 
 
 @functools.lru_cache(maxsize=1)
-def get_lighting_detector() -> LightingDetector:
-    with _load_lock:
-        cfg = _models_config()["lighting_detector"]
-        detector = LightingDetector(
-            weights_path=settings.project_root / cfg["weights_path"],
-            device=settings.device,
-            score_threshold=cfg["score_threshold"],
-        )
-        detector.warmup()
-        return detector
+def _construir_person_detector() -> PersonDetector:
+    cfg = _models_config()["person_detector"]
+    detector = PersonDetector(
+        weights_path=settings.project_root / cfg["weights_path"],
+        device=settings.device,
+        conf_threshold=cfg["conf_threshold"],
+    )
+    detector.warmup()
+    return detector
+
+
+@functools.lru_cache(maxsize=1)
+def _construir_lighting_detector() -> LightingDetector:
+    cfg = _models_config()["lighting_detector"]
+    detector = LightingDetector(
+        weights_path=settings.project_root / cfg["weights_path"],
+        device=settings.device,
+        score_threshold=cfg["score_threshold"],
+    )
+    detector.warmup()
+    return detector
 
 
 @functools.lru_cache(maxsize=1)
