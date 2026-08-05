@@ -28,6 +28,7 @@ import base64
 import binascii
 import calendar
 import datetime as dt
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,18 +58,25 @@ def _pct(parte: float, total: float) -> float:
 # ============================== PANORAMA ==============================
 
 
-def recolectar_panorama(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> dict:
+def recolectar_panorama(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None,
+                        id_zona: uuid.UUID | None = None) -> dict:
     """Los tres angulos del periodo, medidos una sola vez. Cualquier tipo de
     reporte se sirve de aqui: asi el reporte de ocupacion y el de consumo
-    hablan de los MISMOS numeros y no de dos consultas que pueden divergir."""
+    hablan de los MISMOS numeros y no de dos consultas que pueden divergir.
+
+    Con `id_zona` todo el panorama queda restringido a esa sala. Va aqui y no
+    en cada llamador por el mismo motivo de siempre: si el filtro se aplicara
+    en unas consultas si y en otras no, el reporte mezclaria el consumo de una
+    sala con la ocupacion de todas, y nadie lo notaria mirando el PDF."""
     hasta = hasta or dt.datetime.now(dt.timezone.utc)
     return {
         "desde": desde,
         "hasta": hasta,
-        "consumo": historical.resumen_periodo(db, desde=desde, hasta=hasta),
-        "ocupacion": historical.resumen_ocupacion(db, desde=desde, hasta=hasta),
-        "iluminacion": historical.resumen_iluminacion(db, desde=desde, hasta=hasta),
-        "por_luminaria": historical.resumen_por_luminaria(db, desde=desde, hasta=hasta),
+        "id_zona": id_zona,
+        "consumo": historical.resumen_periodo(db, desde=desde, hasta=hasta, id_zona=id_zona),
+        "ocupacion": historical.resumen_ocupacion(db, desde=desde, hasta=hasta, id_zona=id_zona),
+        "iluminacion": historical.resumen_iluminacion(db, desde=desde, hasta=hasta, id_zona=id_zona),
+        "por_luminaria": historical.resumen_por_luminaria(db, desde=desde, hasta=hasta, id_zona=id_zona),
     }
 
 
@@ -602,14 +610,15 @@ def _seccion(titulo: str | None, bloques: list, anotacion: str | None = None) ->
 # ============================== TIPOS DE REPORTE ==============================
 
 
-def datos_consumo_diario(db: Session, figuras: list[dict] | None = None) -> dict:
+def datos_consumo_diario(db: Session, figuras: list[dict] | None = None,
+                         id_zona: uuid.UUID | None = None) -> dict:
     ahora = dt.datetime.now(dt.timezone.utc)
     inicio_dia = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    panorama = recolectar_panorama(db, desde=inicio_dia, hasta=ahora)
+    panorama = recolectar_panorama(db, desde=inicio_dia, hasta=ahora, id_zona=id_zona)
     c = panorama["consumo"]
-    eventos = historical.eventos_recientes(db, desde=inicio_dia, limite=14)
-    por_hora = historical.ocupacion_por_hora(db, desde=inicio_dia, hasta=ahora)
+    eventos = historical.eventos_recientes(db, desde=inicio_dia, limite=14, id_zona=id_zona)
+    por_hora = historical.ocupacion_por_hora(db, desde=inicio_dia, hasta=ahora, id_zona=id_zona)
 
     principal = {
         "tipo": "destacado",
@@ -656,13 +665,14 @@ def datos_consumo_diario(db: Session, figuras: list[dict] | None = None) -> dict
     }
 
 
-def datos_consumo_mensual(db: Session, figuras: list[dict] | None = None) -> dict:
+def datos_consumo_mensual(db: Session, figuras: list[dict] | None = None,
+                          id_zona: uuid.UUID | None = None) -> dict:
     ahora = dt.datetime.now(dt.timezone.utc)
     inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    panorama = recolectar_panorama(db, desde=inicio_mes, hasta=ahora)
+    panorama = recolectar_panorama(db, desde=inicio_mes, hasta=ahora, id_zona=id_zona)
     c = panorama["consumo"]
-    por_dia = historical.resumen_por_dia(db, desde=inicio_mes, hasta=ahora)
+    por_dia = historical.resumen_por_dia(db, desde=inicio_mes, hasta=ahora, id_zona=id_zona)
     periodo = f"{MESES[ahora.month - 1]} de {ahora.year}"
 
     dias_con_dato = len(por_dia) or 1
@@ -707,13 +717,14 @@ def datos_consumo_mensual(db: Session, figuras: list[dict] | None = None) -> dic
     }
 
 
-def datos_plan_ahorro(db: Session, limite: int = 8, figuras: list[dict] | None = None) -> dict:
+def datos_plan_ahorro(db: Session, limite: int = 8, figuras: list[dict] | None = None,
+                      id_zona: uuid.UUID | None = None) -> dict:
     ahora = dt.datetime.now(dt.timezone.utc)
     desde = ahora - dt.timedelta(days=30)
 
-    panorama = recolectar_panorama(db, desde=desde, hasta=ahora)
+    panorama = recolectar_panorama(db, desde=desde, hasta=ahora, id_zona=id_zona)
     c = panorama["consumo"]
-    por_simulacion = historical.comparar_por_simulacion(db, limite=500)
+    por_simulacion = historical.comparar_por_simulacion(db, limite=500, id_zona=id_zona)
     recomendaciones = db.scalars(
         select(models.RecomendacionEnergetica)
         .order_by(models.RecomendacionEnergetica.ahorro_estimado_kwh.desc())

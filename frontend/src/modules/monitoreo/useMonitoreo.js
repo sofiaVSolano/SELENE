@@ -44,8 +44,8 @@ export function useMonitoreo() {
   const [error, setError] = useState(null);
   const [auto, setAuto] = useState(false);
   const [intervalo, setIntervalo] = useState(5000);
-  const [luminarias, setLuminarias] = useState([]);
-  const [idLuminaria, setIdLuminaria] = useState("");
+  const [salas, setSalas] = useState([]);
+  const [idZona, setIdZona] = useState("");
 
   const videoRef = useRef(null);
   const lienzo = useRef(null);
@@ -54,17 +54,31 @@ export function useMonitoreo() {
   const vacanteDesde = useRef(null); // Date del primer frame vacío de la racha actual
   const ultimaAlertaEn = useRef(0); // epoch ms de la última alerta disparada
 
-  /* La luminaria es opcional: sin ella el backend responde igual, solo que
-     sin consumo (no puede saber que lampara esta midiendo). */
-  useEffect(() => {
-    api
-      .listLuminarias()
-      .then((lista) => {
-        setLuminarias(lista);
-        if (lista.length) setIdLuminaria(lista[0].id_luminaria);
-      })
-      .catch(() => setLuminarias([]));
+  /* Se monitorea una SALA, no una luminaria: las luminarias las detecta y
+     registra SELENE sola en cuanto la cámara las ve (ver
+     `backend/api/luminarias_auto.py`), así que aquí no hay nada que elegir
+     salvo el espacio.
+
+     `recargarSalas` es una función y no solo un efecto de montaje porque el
+     shell interno NO se desmonta al navegar: sin esto, crear una sala en
+     `/salas` y volver al monitoreo dejaba el selector con la lista vieja, sin
+     la sala recién creada. */
+  const recargarSalas = useCallback(async () => {
+    try {
+      const lista = await api.listZonas();
+      setSalas(lista);
+      setIdZona((actual) => {
+        if (actual && lista.some((s) => s.id_zona === actual)) return actual;
+        return lista.length ? lista[0].id_zona : "";
+      });
+    } catch {
+      setSalas([]);
+    }
   }, []);
+
+  useEffect(() => {
+    recargarSalas();
+  }, [recargarSalas]);
 
   const detenerCamara = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -162,16 +176,16 @@ export function useMonitoreo() {
    */
   const dispararAlerta = useCallback(
     async (captura, segundosVacia) => {
-      if (!idLuminaria) return;
+      if (!idZona) return;
       try {
         const r = await api.reportarAlerta({
-          id_luminaria: idLuminaria,
+          id_zona: idZona,
           segundos_sin_ocupacion: Math.min(86400, Math.round(segundosVacia)),
           porcentaje_artificial: captura.analisis.porcentaje_artificial ?? 0,
           luminarias_encendidas: Math.max(1, captura.analisis.num_luminarias_encendidas ?? 1),
         });
 
-        const luminaria = luminarias.find((l) => l.id_luminaria === idLuminaria);
+        const sala = salas.find((s) => s.id_zona === idZona);
         const a = captura.analisis;
         const segundos = Math.round(segundosVacia);
 
@@ -179,8 +193,11 @@ export function useMonitoreo() {
           idEvento: String(r.id_evento),
           ts: r.fecha_hora,
           imagen: captura.miniatura,
-          zona: luminaria?.zona?.nombre || "sin zona",
-          luminaria: luminaria?.nombre || "",
+          // El id, además del nombre: el historial filtra por sala y un
+          // nombre puede cambiar (la pantalla de salas deja renombrarlas).
+          idZona,
+          zona: sala?.nombre || "sin sala",
+          luminaria: "",
           mensaje: r.mensaje,
           prioridad: r.prioridad,
           segundosSinOcupacion: segundos,
@@ -198,10 +215,12 @@ export function useMonitoreo() {
            que muestra el panel lateral — dos números distintos para el mismo
            hecho en dos sitios de la app serían un error de producto, no un
            detalle. Si el módulo no pudo estimar (devuelve null cuando falla
-           el paso de LightGBM), se cae a la potencia declarada de la
-           luminaria por el tiempo que la sala lleva vacía: peor estimación,
-           pero auditable, y la tarjeta lo dice. */
-        const potenciaW = Number(luminaria?.potencia_w) || 0;
+           el paso de LightGBM), se cae a la potencia declarada de la SALA
+           por las luminarias que se ven encendidas y el tiempo que lleva
+           vacía: peor estimación, pero auditable, y la tarjeta lo dice.
+           Los vatios los declara la sala porque una cámara no los ve. */
+        const potenciaW =
+          (Number(sala?.potencia_luminaria_w) || 0) * Math.max(1, a.num_luminarias_encendidas ?? 1);
         const aproximado = a.consumo_estimado_kwh === null || a.consumo_estimado_kwh === undefined;
         const consumoWh = aproximado
           ? potenciaW * (segundos / 3600)
@@ -216,8 +235,8 @@ export function useMonitoreo() {
         emitirOportunidad({
           id: String(r.id_evento),
           ts: r.fecha_hora,
-          zona: luminaria?.zona?.nombre || "sin zona",
-          luminaria: luminaria?.nombre || "",
+          zona: sala?.nombre || "sin sala",
+          luminaria: "",
           imagen: captura.miniatura,
           prioridad: r.prioridad,
           segundos,
@@ -233,7 +252,7 @@ export function useMonitoreo() {
         /* una alerta perdida no debe romper el monitoreo en curso */
       }
     },
-    [idLuminaria, luminarias]
+    [idZona, salas]
   );
 
   /**
@@ -288,10 +307,16 @@ export function useMonitoreo() {
       const blob = await new Promise((res) => marco.canvas.toBlob(res, "image/jpeg", 0.82));
       const form = new FormData();
       form.append("imagen", blob, "frame.jpg");
-      if (idLuminaria) form.append("id_luminaria", idLuminaria);
+      /* Se manda la SALA: el backend registra solo las luminarias que la
+         cámara vaya viendo en ella (ver `api/luminarias_auto.py`). */
+      if (idZona) form.append("id_zona", idZona);
 
       const analisis = await api.analyzeFrame(form);
 
+      /* La sala se sella EN la captura, con la que estaba elegida al tomarla.
+         Si se dedujera después, cambiar de sala reescribiría la procedencia
+         de todo el historial ya tomado. */
+      const salaActiva = salas.find((s) => s.id_zona === idZona);
       const captura = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ts: new Date(analisis.fecha_hora || Date.now()),
@@ -299,6 +324,8 @@ export function useMonitoreo() {
         miniatura: miniaturaDe(marco.canvas),
         ancho: marco.w,
         alto: marco.h,
+        idZona: idZona || undefined,
+        zona: salaActiva?.nombre,
         analisis,
       };
 
@@ -322,7 +349,7 @@ export function useMonitoreo() {
       enVuelo.current = false;
       setAnalizando(false);
     }
-  }, [idLuminaria, miniaturaDe, pintarFotograma, evaluarDerroche]);
+  }, [idZona, salas, miniaturaDe, pintarFotograma, evaluarDerroche]);
 
   /* Modo automatico / reproduccion: mismo mecanismo. Se re-lanza tras cada
      respuesta en vez de con un intervalo fijo, para no encolar peticiones
@@ -380,9 +407,12 @@ export function useMonitoreo() {
     setAuto,
     intervalo,
     setIntervalo,
-    luminarias,
-    idLuminaria,
-    setIdLuminaria,
+    salas,
+    idZona,
+    setIdZona,
+    // La lista se recarga al volver al monitoreo: crear una sala en /salas
+    // tiene que verse aquí sin recargar la página.
+    recargarSalas,
     videoRef,
     iniciarMonitoreo,
     detenerMonitoreo,

@@ -16,7 +16,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from .. import detection_service, models, schemas
+from .. import detection_service, luminarias_auto, models, schemas
 from ..database import get_db
 from ..deps import get_current_user
 from ..energy import context as energy_context
@@ -30,10 +30,16 @@ logger = logging.getLogger("api.routers.deteccion")
 @router.post("/frame", response_model=schemas.FrameAnalysisResponse)
 def analizar_frame(
     imagen: UploadFile = File(...),
+    id_zona: uuid.UUID | None = Form(default=None),
     id_luminaria: uuid.UUID | None = Form(default=None),
     db: Session = Depends(get_db),
     _usuario: models.Usuario = Depends(get_current_user),
 ) -> schemas.FrameAnalysisResponse:
+    """Se monitorea una SALA (`id_zona`): SELENE registra sola las luminarias
+    que va viendo en ella (ver `api/luminarias_auto.py`), porque no se
+    escriben a mano. `id_luminaria` se mantiene para quien ya llamaba asi a la
+    API y apunta a una luminaria concreta.
+    """
     raw = imagen.file.read()
     try:
         frame_bgr = detection_service.decode_image(raw)
@@ -45,12 +51,26 @@ def analizar_frame(
     deteccion_id = None
     consumo_estimado_kwh = None
     ahorro_estimado_kwh = None
+    luminarias_sala: list[models.Luminaria] = []
 
-    if id_luminaria is not None:
+    if id_zona is not None:
+        zona = db.get(models.Zona, id_zona)
+        if zona is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sala no encontrada.")
+        # El detector manda: la sala termina con tantas luminarias como se han
+        # llegado a ver en ella.
+        luminarias_sala = luminarias_auto.sincronizar(db, zona, resultado["num_luminarias"])
+        # La deteccion del fotograma se ancla a la primera: es UNA fila por
+        # fotograma, como siempre. El consumo no se ancla aqui, se reparte
+        # abajo abriendo un ciclo por luminaria encendida.
+        luminaria = luminarias_sala[0]
+        id_luminaria = luminaria.id_luminaria
+    elif id_luminaria is not None:
         luminaria = db.get(models.Luminaria, id_luminaria)
         if luminaria is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Luminaria no encontrada.")
 
+    if id_luminaria is not None:
         registro = models.DeteccionOcupacion(
             id_luminaria=id_luminaria,
             personas_detectadas=resultado["personas_detectadas"],
@@ -65,9 +85,22 @@ def analizar_frame(
         # Tracking real de encendido/apagado (consumo_energetico, eventos):
         # se guarda siempre, sin depender de que el paso de LightGBM de abajo
         # funcione (es la fuente de verdad de "cuanto tiempo estuvo encendida").
-        vision_bridge.actualizar_estado_luminaria(
-            db, luminaria, resultado, deteccion_id, registro.fecha_hora,
-        )
+        #
+        # Con una sala se actualizan TODAS sus luminarias, no solo la que
+        # ancla la deteccion: asi el consumo real sale de tantos ciclos
+        # abiertos como lamparas encendidas hay, en vez de contar siempre una.
+        if luminarias_sala:
+            estados = luminarias_auto.repartir_encendidas(
+                luminarias_sala, resultado["num_luminarias_encendidas"],
+            )
+            for lum, encendida in zip(luminarias_sala, estados):
+                vision_bridge.actualizar_estado_luminaria(
+                    db, lum, resultado, deteccion_id, registro.fecha_hora, encendida=encendida,
+                )
+        else:
+            vision_bridge.actualizar_estado_luminaria(
+                db, luminaria, resultado, deteccion_id, registro.fecha_hora,
+            )
         db.commit()
 
         try:

@@ -69,6 +69,14 @@ class FiguraReporte(BaseModel):
 
 class GenerarReporteRequest(BaseModel):
     clave_reporte: Literal["consumo_diario", "consumo_mensual", "plan_ahorro", "general", "detallado"] = "general"
+    id_zona: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Restringe TODO el reporte a una sala: consumo, ocupacion, iluminacion, eventos y "
+            "desglose por luminaria. None (por defecto) cubre la instalacion entera. La portada "
+            "dice cual es el alcance, para que dos PDF del mismo tipo no se confundan."
+        ),
+    )
     figuras: list[FiguraReporte] = Field(
         default_factory=list,
         max_length=4,

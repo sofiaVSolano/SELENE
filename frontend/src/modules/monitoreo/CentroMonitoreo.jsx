@@ -36,6 +36,14 @@ export default function CentroMonitoreo() {
   // tiempo pone un id concreto ahí, que es exactamente "revisando historial".
   const enVivo = m.activa === null;
 
+  /* Al entrar al monitoreo se relee la lista de salas. El shell interno no se
+     desmonta al navegar, así que sin esto una sala creada en /salas no
+     aparecía aquí hasta recargar la página entera. */
+  useEffect(() => {
+    m.recargarSalas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* --- La luz de la app viene de la sala que se está midiendo --- */
   useEffect(() => {
     if (!analisis) return;
@@ -93,21 +101,22 @@ export default function CentroMonitoreo() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Luminaria: sin ella no hay estimación de consumo */}
+          {/* Se monitorea una SALA. Las luminarias no se eligen ni se
+              escriben: SELENE las registra sola en cuanto la cámara las ve. */}
           <label className="flex items-center gap-2">
-            <span className="annot">luminaria</span>
+            <span className="annot">sala</span>
             <select
-              value={m.idLuminaria}
+              value={m.idZona}
               onChange={(e) => {
-                m.setIdLuminaria(e.target.value);
+                m.setIdZona(e.target.value);
                 sonido.click(true);
               }}
               className="rounded-full border border-linen bg-paper px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-2 outline-none transition-colors duration-300 hover:border-ink-4 focus:border-amber"
             >
-              {m.luminarias.length === 0 && <option value="">sin luminarias</option>}
-              {m.luminarias.map((l) => (
-                <option key={l.id_luminaria} value={l.id_luminaria}>
-                  {l.nombre} · {l.zona?.nombre}
+              {m.salas.length === 0 && <option value="">sin salas — crea una primero</option>}
+              {m.salas.map((s) => (
+                <option key={s.id_zona} value={s.id_zona}>
+                  {s.nombre}
                 </option>
               ))}
             </select>

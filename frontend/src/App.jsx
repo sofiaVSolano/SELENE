@@ -8,6 +8,7 @@ import AccesoPage from "./modules/acceso/AccesoPage.jsx";
 import AsistentePage from "./modules/asistente/AsistentePage.jsx";
 import HistorialPage from "./modules/historial/HistorialPage.jsx";
 import CentroMonitoreo from "./modules/monitoreo/CentroMonitoreo.jsx";
+import SalasPage from "./modules/salas/SalasPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 
 /**
@@ -40,6 +41,7 @@ export default function App() {
 
           <Route element={<Interno />}>
             <Route path="/monitoreo" element={<CentroMonitoreo />} />
+            <Route path="/salas" element={<SalasPage />} />
             <Route path="/asistente" element={<AsistentePage />} />
             <Route path="/historial" element={<HistorialPage />} />
           </Route>

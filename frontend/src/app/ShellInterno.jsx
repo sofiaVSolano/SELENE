@@ -43,6 +43,17 @@ const RUTAS = [
     ),
   },
   {
+    a: "/salas",
+    nombre: "salas",
+    // Planta: el espacio visto desde arriba, con su puerta.
+    icono: (
+      <>
+        <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+        <path d="M3.5 12.5h5M15.5 19.5v-7h5" />
+      </>
+    ),
+  },
+  {
     a: "/asistente",
     nombre: "asistente",
     icono: (

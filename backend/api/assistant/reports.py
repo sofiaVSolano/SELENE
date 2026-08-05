@@ -60,7 +60,8 @@ def _generar_resumen(consultas: list[models.Consulta]) -> str:
 
 
 def _datos_general(
-    db: Session, id_usuario: uuid.UUID, limite_consultas: int, figuras: list[dict] | None = None
+    db: Session, id_usuario: uuid.UUID, limite_consultas: int, figuras: list[dict] | None = None,
+    id_zona: uuid.UUID | None = None,
 ) -> dict:
     """El resumen de la conversacion. Ademas de lo conversado, lleva el
     panorama real de la ultima semana: un reporte que solo transcribe
@@ -69,7 +70,8 @@ def _datos_general(
     resumen = _generar_resumen(consultas)
 
     ahora = dt.datetime.now(dt.timezone.utc)
-    panorama = report_data.recolectar_panorama(db, desde=ahora - dt.timedelta(days=7), hasta=ahora)
+    panorama = report_data.recolectar_panorama(db, desde=ahora - dt.timedelta(days=7), hasta=ahora,
+                                               id_zona=id_zona)
 
     secciones = [
         report_data._seccion(
@@ -205,6 +207,7 @@ def _datos_detallado(
     instrucciones: str,
     limite_consultas: int,
     figuras: list[dict] | None = None,
+    id_zona: uuid.UUID | None = None,
 ) -> dict:
     """El unico tipo de reporte que el LLM redacta libremente (a diferencia
     de `report_data.datos_*`, plantillas fijas): recibe el mismo snapshot de
@@ -221,7 +224,7 @@ def _datos_detallado(
     ahora = dt.datetime.now(dt.timezone.utc)
     contexto = context_builder.construir_contexto_datos(db)
 
-    por_luminaria = historical.resumen_por_luminaria(db, desde=ahora - dt.timedelta(days=30))
+    por_luminaria = historical.resumen_por_luminaria(db, desde=ahora - dt.timedelta(days=30), id_zona=id_zona)
     if por_luminaria:
         contexto += "\n\nConsumo estimado acumulado por luminaria, ultimos 30 dias (de mas a menos consumo):\n"
         contexto += "\n".join(
@@ -245,9 +248,10 @@ def _datos_detallado(
         enfoque = "general"
 
     # --- Lo que pone SELENE, con datos reales, antes de la prosa ---
-    panorama = report_data.recolectar_panorama(db, desde=ahora - dt.timedelta(days=30), hasta=ahora)
-    por_dia = historical.resumen_por_dia(db, desde=ahora - dt.timedelta(days=30), hasta=ahora)
-    por_hora = historical.ocupacion_por_hora(db, desde=ahora - dt.timedelta(days=30), hasta=ahora)
+    panorama = report_data.recolectar_panorama(db, desde=ahora - dt.timedelta(days=30), hasta=ahora,
+                                               id_zona=id_zona)
+    por_dia = historical.resumen_por_dia(db, desde=ahora - dt.timedelta(days=30), hasta=ahora, id_zona=id_zona)
+    por_hora = historical.ocupacion_por_hora(db, desde=ahora - dt.timedelta(days=30), hasta=ahora, id_zona=id_zona)
 
     # El orden de las graficas tambien lo decide el enfoque: la protagonista
     # va primero. Es la misma idea que en las tarjetas.
@@ -332,6 +336,7 @@ def generar_reporte(
     titulo: str | None = None,
     instrucciones: str | None = None,
     figuras: list[dict] | None = None,
+    id_zona: uuid.UUID | None = None,
 ) -> models.Reporte:
     """`figuras` son los fotogramas que manda el frontend para las figuras del
     reporte (imagen ya decodificada + metadatos del analisis). El backend no
@@ -345,26 +350,32 @@ def generar_reporte(
     figuras = report_data.decodificar_figuras(figuras or [])
 
     if clave_reporte == "detallado":
-        datos = _datos_detallado(db, usuario, (instrucciones or "").strip(), limite_consultas, figuras)
+        datos = _datos_detallado(db, usuario, (instrucciones or "").strip(), limite_consultas, figuras,
+                                 id_zona=id_zona)
         resumen = datos["resumen"] or _resumen_corto(datos)
     elif clave_reporte == "general":
-        datos = _datos_general(db, usuario.id_usuario, limite_consultas, figuras)
+        datos = _datos_general(db, usuario.id_usuario, limite_consultas, figuras, id_zona=id_zona)
         resumen = datos["resumen"]
     elif clave_reporte == "consumo_diario":
-        datos = report_data.datos_consumo_diario(db, figuras)
+        datos = report_data.datos_consumo_diario(db, figuras, id_zona=id_zona)
         resumen = _resumen_corto(datos)
     elif clave_reporte == "consumo_mensual":
-        datos = report_data.datos_consumo_mensual(db, figuras)
+        datos = report_data.datos_consumo_mensual(db, figuras, id_zona=id_zona)
         resumen = _resumen_corto(datos)
     else:  # plan_ahorro
-        datos = report_data.datos_plan_ahorro(db, figuras=figuras)
+        datos = report_data.datos_plan_ahorro(db, figuras=figuras, id_zona=id_zona)
         resumen = _resumen_corto(datos)
 
     titulo_final = titulo or definicion["etiqueta"]
     generado_en = dt.datetime.now()
+    # Si el reporte cubre una sola sala hay que DECIRLO en la portada: dos PDF
+    # con el mismo titulo y cifras distintas, sin nada que los distinga, es
+    # peor que no poder filtrar.
+    sala = db.get(models.Zona, id_zona) if id_zona is not None else None
+    alcance = f" Cubre únicamente la sala «{sala.nombre}»." if sala is not None else ""
     subtitulo = (
         f"Generado el {generado_en.strftime('%d/%m/%Y a las %H:%M')} para {usuario.nombre} "
-        f"({usuario.correo})."
+        f"({usuario.correo}).{alcance}"
     )
 
     nombre_archivo = f"{uuid.uuid4()}.pdf"
@@ -372,7 +383,7 @@ def generar_reporte(
     pdf_renderer.render_pdf(ruta, {
         "titulo": titulo_final,
         "subtitulo": subtitulo,
-        "periodo": datos["periodo"],
+        "periodo": datos["periodo"] + (f" · {sala.nombre}" if sala is not None else ""),
         "generado_en": generado_en,
         "secciones": datos["secciones"],
     })
@@ -381,7 +392,7 @@ def generar_reporte(
         id_usuario=usuario.id_usuario,
         tipo_reporte=definicion["tipo_reporte_enum"],
         clave_reporte=clave_reporte,
-        periodo=datos["periodo"],
+        periodo=datos["periodo"] + (f" · {sala.nombre}" if sala is not None else ""),
         ruta_archivo=str(ruta),
         resumen=resumen,
     )

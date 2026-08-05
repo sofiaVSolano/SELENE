@@ -9,6 +9,7 @@ import {
   suscribirAlertas,
   vaciarAlertas,
 } from "../../lib/alertasAlmacen.js";
+import { filtrarPorSala, TODAS } from "../../lib/salaFiltro.js";
 import { useSpecular } from "../../lib/useSpecular.js";
 import { CURVA, escena, RESORTE, trans } from "../../lib/movimiento.js";
 import { sonido } from "../../lib/sound.js";
@@ -164,13 +165,17 @@ function Tarjeta({ a, indice, onBorrar, onAmpliar }) {
   );
 }
 
-export default function VistaAlertas() {
-  const [alertas, setAlertas] = useState(() => listarAlertas());
+export default function VistaAlertas({ sala = TODAS }) {
+  const [crudas, setCrudas] = useState(() => listarAlertas());
   const [filtro, setFiltro] = useState("todas");
   const [ampliada, setAmpliada] = useState(null);
   const [confirmarVaciar, setConfirmarVaciar] = useState(false);
 
-  useEffect(() => suscribirAlertas(setAlertas), []);
+  useEffect(() => suscribirAlertas(setCrudas), []);
+
+  /* Igual que en las capturas: de aquí para abajo `alertas` ya es "las de
+     esta sala", contadores incluidos (ver `VistaCapturas`). */
+  const alertas = useMemo(() => filtrarPorSala(crudas, sala), [crudas, sala]);
 
   useEffect(() => {
     if (!confirmarVaciar) return undefined;

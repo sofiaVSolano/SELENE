@@ -55,6 +55,16 @@ _COLUMNAS_NUEVAS: tuple[tuple[str, str, str], ...] = (
         "onboarding_completado",
         "ALTER TABLE usuarios ADD COLUMN onboarding_completado INTEGER NOT NULL DEFAULT 0",
     ),
+    (
+        # Potencia tipica de las luminarias de la sala. Existe porque las
+        # luminarias ya NO se escriben a mano —las detecta la camara— y una
+        # camara no puede ver los vatios de una lampara. Es el unico numero
+        # del consumo que sigue siendo una declaracion del usuario, y por eso
+        # se declara una vez por sala y no una vez por luminaria.
+        "zonas",
+        "potencia_luminaria_w",
+        "ALTER TABLE zonas ADD COLUMN potencia_luminaria_w REAL NOT NULL DEFAULT 18.0",
+    ),
 )
 
 

@@ -135,6 +135,7 @@ def generar_reporte(
             titulo=payload.titulo,
             instrucciones=payload.instrucciones,
             figuras=[f.model_dump() for f in payload.figuras],
+            id_zona=payload.id_zona,
         )
     except AssistantConfigError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

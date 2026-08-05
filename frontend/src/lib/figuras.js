@@ -1,5 +1,6 @@
 import { listarAlertas } from "./alertasAlmacen.js";
 import { listarEjecuciones } from "./almacen.js";
+import { filtrarPorSala, TODAS } from "./salaFiltro.js";
 
 /**
  * LAS FIGURAS DEL REPORTE
@@ -61,11 +62,21 @@ function deCaptura(c) {
  * Hasta cuatro figuras, las más recientes, con imagen de verdad.
  * Nunca lanza: si localStorage está inaccesible, el reporte simplemente sale
  * sin evidencia visual.
+ *
+ * `sala` restringe la evidencia a esa sala. Tiene que ir de la mano del
+ * `id_zona` que se manda al backend: un reporte cuyas cifras son de una sala
+ * y cuyas fotos son de otra es peor que uno sin fotos, porque parece correcto.
  */
-export function figurasParaReporte() {
+export function figurasParaReporte(sala = TODAS) {
   try {
-    const alertas = listarAlertas().filter((a) => a.imagen).slice(0, MAX_ALERTAS).map(deAlerta);
-    const capturas = listarEjecuciones().filter((c) => c.miniatura).slice(0, MAX_CAPTURAS).map(deCaptura);
+    const alertas = filtrarPorSala(listarAlertas(), sala)
+      .filter((a) => a.imagen)
+      .slice(0, MAX_ALERTAS)
+      .map(deAlerta);
+    const capturas = filtrarPorSala(listarEjecuciones(), sala)
+      .filter((c) => c.miniatura)
+      .slice(0, MAX_CAPTURAS)
+      .map(deCaptura);
     return [...alertas, ...capturas];
   } catch {
     return [];

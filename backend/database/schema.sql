@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS zonas (
     descripcion  TEXT,
     tipo_espacio TEXT NOT NULL DEFAULT 'oficina'
                  CHECK (tipo_espacio IN ('comedor', 'salon', 'laboratorio', 'auditorio', 'oficina')),
+    -- Potencia tipica de las luminarias de esta sala. Las luminarias las
+    -- detecta la camara, pero los vatios no se ven en una imagen: es el unico
+    -- dato del consumo que declara el usuario, y se declara una vez por sala.
+    potencia_luminaria_w REAL NOT NULL DEFAULT 18.0 CHECK (potencia_luminaria_w > 0),
     created_at   TEXT NOT NULL
 );
 

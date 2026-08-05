@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import SelectorSala from "../../components/SelectorSala.jsx";
 import Boton from "../../components/ui/Boton.jsx";
 import VisorDocumento from "../../components/ui/VisorDocumento.jsx";
 import { emitirPulso } from "../../light/pulso.js";
 import { api, ApiError } from "../../lib/api.js";
 import { figurasParaReporte } from "../../lib/figuras.js";
 import { CURVA, RESORTE, trans } from "../../lib/movimiento.js";
+import { TODAS } from "../../lib/salaFiltro.js";
+import { useSalaSeleccionada } from "../../lib/salaSeleccionada.js";
 import { sonido } from "../../lib/sound.js";
 
 /**
@@ -68,10 +71,18 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
   const [pdf, setPdf] = useState(null); // { blob, url }
   const [mostrandoPdf, setMostrandoPdf] = useState(false);
 
-  /* Las figuras se leen UNA vez, al abrir la impresora: si se recalcularan en
-     cada render, una captura nueva entrando a media impresión cambiaría el
-     documento a mitad de camino. */
-  const [figuras] = useState(() => figurasParaReporte());
+  /* La sala que se está mirando en el historial manda también aquí: el
+     reporte cubre lo mismo que estabas viendo. Se puede cambiar sin salir de
+     la impresora, porque desde el asistente no se ve el selector del
+     historial y había que poder saber —y corregir— el alcance antes de
+     imprimir. */
+  const [sala, setSala] = useSalaSeleccionada();
+
+  /* Las figuras se recalculan al cambiar de sala (si no, la evidencia visual
+     sería de otra sala que las cifras) pero NO en cada render: una captura
+     nueva entrando a media impresión cambiaría el documento a mitad de
+     camino. */
+  const figuras = useMemo(() => figurasParaReporte(sala), [sala]);
 
   const detenerRodillo = useRef(null);
   const vivo = useRef(true);
@@ -112,6 +123,10 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
     try {
       const r = await api.generarReporteAsistente({
         clave_reporte: clave,
+        // Restringe TODO el reporte a la sala, no solo las figuras: consumo,
+        // ocupación, iluminación, eventos y desglose por luminaria (ver
+        // `recolectar_panorama` en `assistant/report_data.py`).
+        ...(sala !== TODAS ? { id_zona: sala } : {}),
         ...(clave === "detallado" ? { instrucciones: instrucciones.trim() } : {}),
         // Las imágenes de detección viven en el navegador, así que la sección
         // de evidencia visual del PDF sólo existe si se las manda aquí.
@@ -449,6 +464,12 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
                     </button>
                   ))}
                 </div>
+                {/* El alcance, ANTES de imprimir: un PDF de la sala
+                    equivocada no se ve equivocado. */}
+                <div className="mb-4 flex justify-center">
+                  <SelectorSala valor={sala} onChange={setSala} />
+                </div>
+
                 <div className="flex flex-col items-center gap-3">
                   <Boton variante="luz" onClick={imprimir} className="px-8 py-3">
                     imprimir

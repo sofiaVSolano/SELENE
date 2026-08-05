@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import alertas, asistente, auth, deteccion, energia, luminarias, recorrido
+from .routers import alertas, asistente, auth, deteccion, energia, luminarias, recorrido, zonas
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("api.main")
@@ -32,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(zonas.router)
 app.include_router(luminarias.router)
 app.include_router(deteccion.router)
 app.include_router(alertas.router)

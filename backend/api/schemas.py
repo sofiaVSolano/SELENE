@@ -6,7 +6,7 @@ import datetime as dt
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 # --- Auth / Usuarios ---------------------------------------------------------
 
@@ -51,6 +51,10 @@ class TokenResponse(BaseModel):
 # --- Luminarias / Zonas -------------------------------------------------------
 
 
+TipoEspacio = Literal["comedor", "salon", "laboratorio", "auditorio", "oficina"]
+TipoLuminaria = Literal["LED", "fluorescente", "sodio", "halogena", "induccion", "otro"]
+
+
 class ZonaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,15 +63,106 @@ class ZonaOut(BaseModel):
     tipo_espacio: str
 
 
+_POTENCIA = Field(
+    default=18.0,
+    gt=0,
+    le=2000,
+    description=(
+        "Potencia tipica de las luminarias de la sala, en vatios. Es el unico dato del "
+        "consumo que declara el usuario: las luminarias las detecta la camara, pero los "
+        "vatios no se ven en una imagen. Se propaga a las luminarias de la sala."
+    ),
+)
+
+
+class ZonaCreate(BaseModel):
+    nombre: str = Field(min_length=2, max_length=100)
+    # `tipo_espacio` no es decorativo: alimenta el contexto del modelo
+    # energetico (ver configs/energy_context.yaml), asi que la sala tiene que
+    # declararlo desde que nace.
+    tipo_espacio: TipoEspacio = "oficina"
+    potencia_luminaria_w: float = _POTENCIA
+    edificio: str | None = Field(default=None, max_length=100)
+    piso: str | None = Field(default=None, max_length=50)
+    descripcion: str | None = Field(default=None, max_length=500)
+
+
+class ZonaUpdate(BaseModel):
+    """Todo opcional: se aplica solo lo que venga (PATCH, no PUT)."""
+
+    nombre: str | None = Field(default=None, min_length=2, max_length=100)
+    tipo_espacio: TipoEspacio | None = None
+    potencia_luminaria_w: float | None = Field(default=None, gt=0, le=2000)
+    edificio: str | None = Field(default=None, max_length=100)
+    piso: str | None = Field(default=None, max_length=50)
+    descripcion: str | None = Field(default=None, max_length=500)
+
+
+class ImpactoBorradoOut(BaseModel):
+    """Cuanto historial se lleva por delante borrar una sala."""
+
+    luminarias: int
+    detecciones: int
+    eventos: int
+    registros_consumo: int
+    recomendaciones: int
+
+
+class LuminariaResumen(BaseModel):
+    """La luminaria vista DESDE su sala: sin la zona anidada, que seria el
+    padre repitiendose dentro de cada hijo."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id_luminaria: uuid.UUID
+    nombre: str
+    tipo: str
+    potencia_w: float
+    estado_actual: str
+
+
+class ZonaDetalleOut(ZonaOut):
+    """Lo que necesita la pantalla de salas: la sala con sus luminarias dentro."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    potencia_luminaria_w: float = 18.0
+    edificio: str | None = None
+    piso: str | None = None
+    descripcion: str | None = None
+    # Las registra SELENE al monitorear la sala; no se escriben a mano.
+    luminarias: list[LuminariaResumen] = []
+
+
 class LuminariaCreate(BaseModel):
     nombre: str = Field(min_length=2, max_length=150)
-    zona: str = Field(min_length=2, max_length=100, description="Nombre de la zona; se crea si no existe.")
-    tipo_espacio: Literal["comedor", "salon", "laboratorio", "auditorio", "oficina"] = Field(
+    # Dos formas de decir en que sala va, y exactamente una debe venir:
+    # `id_zona` la usa la pantalla de salas (la sala ya existe y se eligio);
+    # `zona` por nombre es el camino viejo, que crea la sala si no existe y
+    # se conserva para no romper a quien ya llamaba asi a la API.
+    id_zona: uuid.UUID | None = None
+    zona: str | None = Field(default=None, min_length=2, max_length=100)
+    tipo_espacio: TipoEspacio = Field(
         default="oficina",
-        description="Solo se usa si la zona no existe todavia; tipo de espacio para el modelo LightGBM (ver configs/energy_context.yaml).",
+        description="Solo se usa si la zona se crea por nombre; tipo de espacio para el modelo LightGBM (ver configs/energy_context.yaml).",
     )
-    tipo: str = Field(default="LED")
+    tipo: TipoLuminaria = "LED"
     potencia_w: float = Field(gt=0, default=18.0)
+
+    @model_validator(mode="after")
+    def _una_sola_sala(self) -> "LuminariaCreate":
+        if (self.id_zona is None) == (self.zona is None):
+            raise ValueError("Indique la sala con 'id_zona' o con 'zona' (nombre), pero no ambas.")
+        return self
+
+
+class LuminariaUpdate(BaseModel):
+    """Todo opcional. `id_zona` permite mover la luminaria de sala."""
+
+    nombre: str | None = Field(default=None, min_length=2, max_length=150)
+    id_zona: uuid.UUID | None = None
+    tipo: TipoLuminaria | None = None
+    potencia_w: float | None = Field(default=None, gt=0)
 
 
 class LuminariaOut(BaseModel):
@@ -144,7 +239,11 @@ class FrameAnalysisResponse(BaseModel):
 
 
 class AlertaOcupacionLuzCreate(BaseModel):
-    id_luminaria: uuid.UUID
+    # Se monitorea una sala, asi que la alerta llega con `id_zona` y el router
+    # la ancla a una luminaria de esa sala. `id_luminaria` se conserva para
+    # quien ya llamaba asi a la API.
+    id_zona: uuid.UUID | None = None
+    id_luminaria: uuid.UUID | None = None
     segundos_sin_ocupacion: int = Field(ge=1, le=86400)
     porcentaje_artificial: float = Field(ge=0, le=100)
     # Cuantas luminarias vio encendidas SELENE al disparar la alerta: es el
@@ -152,6 +251,12 @@ class AlertaOcupacionLuzCreate(BaseModel):
     # nada — una alerta solo se reporta habiendo visto al menos una encendida,
     # asi que es el piso verdadero si un cliente viejo no manda el campo.
     luminarias_encendidas: int = Field(default=1, ge=1, le=999)
+
+    @model_validator(mode="after")
+    def _una_referencia(self) -> "AlertaOcupacionLuzCreate":
+        if self.id_zona is None and self.id_luminaria is None:
+            raise ValueError("Indique la sala con 'id_zona' o la luminaria con 'id_luminaria'.")
+        return self
 
 
 class AlertaOcupacionLuzOut(BaseModel):

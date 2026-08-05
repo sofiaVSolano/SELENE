@@ -12,6 +12,7 @@ es directo porque las columnas ya existen (`consumo_energetico_estimado`,
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,7 +25,35 @@ def _promedio(valores: list[float]) -> float | None:
     return round(sum(valores) / len(valores), 4) if valores else None
 
 
-def resumen_periodo(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> dict:
+def condiciones_zona(modelo, id_zona: uuid.UUID | None) -> list:
+    """Condiciones que restringen una consulta a una sala. Lista vacia si
+    `id_zona` es None, para que el llamador no tenga que ramificar.
+
+    Hay dos formas de llegar a la sala segun la tabla, y por eso esto existe
+    en vez de repetir el join diez veces:
+
+    - `detecciones_ocupacion` y `eventos` guardan `id_luminaria` directo.
+    - `consumo_energetico_estimado`, `predicciones_consumo` y `simulaciones`
+      NO guardan la luminaria: cuelgan de la deteccion que las origino, asi
+      que hay que pasar por ella.
+    """
+    if id_zona is None:
+        return []
+
+    luminarias = select(models.Luminaria.id_luminaria).where(models.Luminaria.id_zona == id_zona)
+    if hasattr(modelo, "id_luminaria"):
+        return [modelo.id_luminaria.in_(luminarias)]
+    return [
+        modelo.id_deteccion.in_(
+            select(models.DeteccionOcupacion.id_deteccion).where(
+                models.DeteccionOcupacion.id_luminaria.in_(luminarias)
+            )
+        )
+    ]
+
+
+def resumen_periodo(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None,
+                    id_zona: uuid.UUID | None = None) -> dict:
     """Suma (no promedio) de consumo/ahorro/CO2 estimado entre `desde` y
     `hasta` (ahora si no se especifica). A diferencia de
     `comparar_actual_vs_optimizado` (que promedia las ultimas N filas, sea
@@ -39,6 +68,7 @@ def resumen_periodo(db: Session, desde: dt.datetime, hasta: dt.datetime | None =
         .where(
             models.ConsumoEnergeticoEstimado.fecha >= desde,
             models.ConsumoEnergeticoEstimado.fecha <= hasta,
+            *condiciones_zona(models.ConsumoEnergeticoEstimado, id_zona),
         )
         .order_by(models.ConsumoEnergeticoEstimado.fecha.asc())
     ).all()
@@ -55,7 +85,8 @@ def resumen_periodo(db: Session, desde: dt.datetime, hasta: dt.datetime | None =
     }
 
 
-def resumen_por_dia(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> list[dict]:
+def resumen_por_dia(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None,
+                    id_zona: uuid.UUID | None = None) -> list[dict]:
     """Igual que `resumen_periodo` pero bucketizado por dia calendario --
     para la tabla del reporte mensual (una fila por dia con su total, no un
     unico total agregado). Reusa el mismo supuesto de energia ya escalada
@@ -66,6 +97,7 @@ def resumen_por_dia(db: Session, desde: dt.datetime, hasta: dt.datetime | None =
         .where(
             models.ConsumoEnergeticoEstimado.fecha >= desde,
             models.ConsumoEnergeticoEstimado.fecha <= hasta,
+            *condiciones_zona(models.ConsumoEnergeticoEstimado, id_zona),
         )
         .order_by(models.ConsumoEnergeticoEstimado.fecha.asc())
     ).all()
@@ -85,7 +117,8 @@ def resumen_por_dia(db: Session, desde: dt.datetime, hasta: dt.datetime | None =
     ]
 
 
-def eventos_recientes(db: Session, desde: dt.datetime, limite: int = 30) -> list[dict]:
+def eventos_recientes(db: Session, desde: dt.datetime, limite: int = 30,
+                      id_zona: uuid.UUID | None = None) -> list[dict]:
     """Eventos de encendido/apagado/alerta de ocupacion desde `desde`, mas
     recientes primero -- para que el asistente pueda citar casos puntuales
     ("el dia X la luminaria Y quedo encendida sin ocupacion...") en vez de
@@ -96,6 +129,7 @@ def eventos_recientes(db: Session, desde: dt.datetime, limite: int = 30) -> list
         .where(
             models.Evento.fecha_hora >= desde,
             models.Evento.tipo_evento.in_(["encendido", "apagado", "alerta_ocupacion"]),
+            *condiciones_zona(models.Evento, id_zona),
         )
         .order_by(models.Evento.fecha_hora.desc())
         .limit(limite)
@@ -107,11 +141,13 @@ def eventos_recientes(db: Session, desde: dt.datetime, limite: int = 30) -> list
     ]
 
 
-def comparar_actual_vs_optimizado(db: Session, limite: int = 200) -> dict:
+def comparar_actual_vs_optimizado(db: Session, limite: int = 200,
+                                  id_zona: uuid.UUID | None = None) -> dict:
     """Promedio de consumo estimado/optimizado/ahorro sobre los ultimos
     `limite` reportes persistidos (consumo actual vs. consumo optimizado)."""
     filas = db.scalars(
         select(models.ConsumoEnergeticoEstimado)
+        .where(*condiciones_zona(models.ConsumoEnergeticoEstimado, id_zona))
         .order_by(models.ConsumoEnergeticoEstimado.fecha.desc())
         .limit(limite)
     ).all()
@@ -126,18 +162,23 @@ def comparar_actual_vs_optimizado(db: Session, limite: int = 200) -> dict:
     }
 
 
-def comparar_por_ocupacion(db: Session, limite: int = 500) -> list[dict]:
+def comparar_por_ocupacion(db: Session, limite: int = 500,
+                           id_zona: uuid.UUID | None = None) -> list[dict]:
     """Agrupa el consumo estimado por nivel de ocupacion (bucket definido en
     configs/energy_context.yaml -> niveles_ocupacion), cruzando
     predicciones_consumo.variables_entrada['ocupacion_pct'] con
     consumo_energetico_estimado por id_deteccion."""
     predicciones = db.scalars(
-        select(models.PrediccionConsumoDB).order_by(models.PrediccionConsumoDB.fecha.desc()).limit(limite)
+        select(models.PrediccionConsumoDB)
+        .where(*condiciones_zona(models.PrediccionConsumoDB, id_zona))
+        .order_by(models.PrediccionConsumoDB.fecha.desc())
+        .limit(limite)
     ).all()
     consumos_por_deteccion = {
         c.id_deteccion: c
         for c in db.scalars(
             select(models.ConsumoEnergeticoEstimado)
+            .where(*condiciones_zona(models.ConsumoEnergeticoEstimado, id_zona))
             .order_by(models.ConsumoEnergeticoEstimado.fecha.desc())
             .limit(limite)
         ).all()
@@ -164,7 +205,8 @@ def comparar_por_ocupacion(db: Session, limite: int = 500) -> list[dict]:
     ]
 
 
-def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1000) -> list[dict]:
+def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1000,
+                          id_zona: uuid.UUID | None = None) -> list[dict]:
     """Consumo/ahorro estimado agrupado por luminaria y zona, cruzando
     `consumo_energetico_estimado -> detecciones_ocupacion -> luminarias/zonas`
     por `id_deteccion`. Los demas `resumen_*`/`comparar_*` de este modulo dan
@@ -190,6 +232,7 @@ def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | 
         .where(
             models.ConsumoEnergeticoEstimado.fecha >= desde,
             models.ConsumoEnergeticoEstimado.fecha <= hasta,
+            *([models.Zona.id_zona == id_zona] if id_zona is not None else []),
         )
         .order_by(models.ConsumoEnergeticoEstimado.fecha.desc())
         .limit(limite)
@@ -214,7 +257,8 @@ def resumen_por_luminaria(db: Session, desde: dt.datetime, hasta: dt.datetime | 
     return sorted(resultado, key=lambda r: r["consumo_estimado_kwh_total"], reverse=True)
 
 
-def resumen_ocupacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> dict:
+def resumen_ocupacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None,
+                      id_zona: uuid.UUID | None = None) -> dict:
     """Ocupacion observada en el periodo, directo de `detecciones_ocupacion`.
 
     Es la unica tabla con una fila por FOTOGRAMA analizado (las del modulo
@@ -231,6 +275,7 @@ def resumen_ocupacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None
         .where(
             models.DeteccionOcupacion.fecha_hora >= desde,
             models.DeteccionOcupacion.fecha_hora <= hasta,
+            *condiciones_zona(models.DeteccionOcupacion, id_zona),
         )
         .order_by(models.DeteccionOcupacion.fecha_hora.asc())
     ).all()
@@ -253,7 +298,8 @@ def resumen_ocupacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None
     }
 
 
-def ocupacion_por_hora(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None) -> list[dict]:
+def ocupacion_por_hora(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None,
+                       id_zona: uuid.UUID | None = None) -> list[dict]:
     """Personas promedio por hora del dia. Es la serie que dibuja la curva de
     ocupacion del reporte; solo devuelve las horas con al menos una muestra
     (dibujar ceros en horas que nadie midio seria inventar dato)."""
@@ -263,6 +309,7 @@ def ocupacion_por_hora(db: Session, desde: dt.datetime, hasta: dt.datetime | Non
         .where(
             models.DeteccionOcupacion.fecha_hora >= desde,
             models.DeteccionOcupacion.fecha_hora <= hasta,
+            *condiciones_zona(models.DeteccionOcupacion, id_zona),
         )
         .order_by(models.DeteccionOcupacion.fecha_hora.asc())
     ).all()
@@ -282,7 +329,8 @@ def ocupacion_por_hora(db: Session, desde: dt.datetime, hasta: dt.datetime | Non
     ]
 
 
-def resumen_iluminacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1500) -> dict:
+def resumen_iluminacion(db: Session, desde: dt.datetime, hasta: dt.datetime | None = None, limite: int = 1500,
+                        id_zona: uuid.UUID | None = None) -> dict:
     """Reparto natural/artificial y conteo de elementos, leidos de
     `simulaciones.escenario_original`.
 
@@ -296,7 +344,11 @@ def resumen_iluminacion(db: Session, desde: dt.datetime, hasta: dt.datetime | No
     hasta = hasta or dt.datetime.now(dt.timezone.utc)
     filas = db.scalars(
         select(models.Simulacion)
-        .where(models.Simulacion.fecha >= desde, models.Simulacion.fecha <= hasta)
+        .where(
+            models.Simulacion.fecha >= desde,
+            models.Simulacion.fecha <= hasta,
+            *condiciones_zona(models.Simulacion, id_zona),
+        )
         .order_by(models.Simulacion.fecha.asc())
         .limit(limite)
     ).all()
@@ -351,13 +403,17 @@ def resumen_iluminacion(db: Session, desde: dt.datetime, hasta: dt.datetime | No
     }
 
 
-def comparar_por_simulacion(db: Session, limite: int = 500) -> list[dict]:
+def comparar_por_simulacion(db: Session, limite: int = 500,
+                            id_zona: uuid.UUID | None = None) -> list[dict]:
     """Ahorro promedio observado por tipo de simulacion (cubre, de forma
     indirecta, la comparacion pedida por % de luz natural y por cantidad de
     luminarias activas: cada tipo de simulacion representa exactamente una de
     esas condiciones, ver `simulations.py`)."""
     simulaciones = db.scalars(
-        select(models.Simulacion).order_by(models.Simulacion.fecha.desc()).limit(limite)
+        select(models.Simulacion)
+        .where(*condiciones_zona(models.Simulacion, id_zona))
+        .order_by(models.Simulacion.fecha.desc())
+        .limit(limite)
     ).all()
 
     por_tipo: dict[str, list[models.Simulacion]] = {}

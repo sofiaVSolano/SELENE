@@ -48,6 +48,15 @@ export function resumirCaptura(captura) {
     id: captura.id,
     ts: (captura.ts instanceof Date ? captura.ts : new Date(captura.ts)).toISOString(),
     miniatura: captura.miniatura,
+    // A qué sala pertenece. Va en la captura y no se deduce después porque la
+    // luminaria elegida puede cambiar entre una captura y la siguiente: lo
+    // único fiable es lo que estaba seleccionado cuando se tomó la foto. Las
+    // capturas guardadas antes de que existiera este dato no lo traen, y el
+    // historial las trata aparte (ver `filtrarPorSala`).
+    idZona: captura.idZona,
+    zona: captura.zona,
+    idLuminaria: captura.idLuminaria,
+    luminaria: captura.luminaria,
     personas: a.personas_detectadas ?? 0,
     ventanas: a.num_ventanas ?? 0,
     luminarias: a.num_luminarias ?? 0,

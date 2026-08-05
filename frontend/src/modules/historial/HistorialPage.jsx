@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import SelectorSala from "../../components/SelectorSala.jsx";
 import { escena, RESORTE } from "../../lib/movimiento.js";
+import { useSalaSeleccionada } from "../../lib/salaSeleccionada.js";
 import { sonido } from "../../lib/sound.js";
 import VistaAlertas from "./VistaAlertas.jsx";
 import VistaCapturas from "./VistaCapturas.jsx";
@@ -25,6 +27,10 @@ const PESTANAS = [
 
 export default function HistorialPage() {
   const [pestana, setPestana] = useState("capturas");
+  // La sala elegida gobierna las tres vistas Y el reporte que se imprime
+  // desde el asistente. Por eso es un estado compartido de la app y no local
+  // de esta pantalla (ver `lib/salaSeleccionada.js`).
+  const [sala, setSala] = useSalaSeleccionada();
 
   return (
     <motion.div {...escena} className="flex h-full flex-col px-4 py-5 sm:px-8 sm:py-6">
@@ -61,10 +67,18 @@ export default function HistorialPage() {
         </div>
       </header>
 
+      <div className="mb-4">
+        <SelectorSala valor={sala} onChange={setSala} />
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto">
         <AnimatePresence mode="wait">
-          {pestana === "capturas" && <VistaCapturas key="capturas" />}
-          {pestana === "alertas" && <VistaAlertas key="alertas" />}
+          {pestana === "capturas" && <VistaCapturas key="capturas" sala={sala} />}
+          {pestana === "alertas" && <VistaAlertas key="alertas" sala={sala} />}
+          {/* Los reportes ya generados NO se filtran: cada uno lleva su
+              alcance escrito en el periodo ("julio de 2026 · Salón"), y
+              esconder los de otras salas dejaría al usuario sin ver que ya
+              existe el que busca. */}
           {pestana === "reportes" && <VistaReportes key="reportes" />}
         </AnimatePresence>
       </div>

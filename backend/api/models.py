@@ -76,6 +76,9 @@ class Zona(Base):
     piso: Mapped[str | None] = mapped_column(Text)
     descripcion: Mapped[str | None] = mapped_column(Text)
     tipo_espacio: Mapped[str] = mapped_column(Text, nullable=False, server_default="oficina")
+    # Ver el comentario del mismo campo en database/schema.sql: los vatios no
+    # se detectan con una camara, asi que se declaran por sala.
+    potencia_luminaria_w: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, server_default="18.0")
     created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
 
     luminarias: Mapped[list["Luminaria"]] = relationship(back_populates="zona")

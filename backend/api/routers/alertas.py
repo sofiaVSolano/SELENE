@@ -13,6 +13,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -52,9 +53,25 @@ def reportar_ocupacion_luz(
     db: Session = Depends(get_db),
     _usuario: models.Usuario = Depends(get_current_user),
 ) -> schemas.AlertaOcupacionLuzOut:
-    luminaria = db.get(models.Luminaria, payload.id_luminaria)
-    if luminaria is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Luminaria no encontrada.")
+    if payload.id_zona is not None:
+        # La alerta es de la SALA. Se ancla a una de sus luminarias porque
+        # `eventos` y `recomendaciones` cuelgan de una luminaria; cual de
+        # ellas es indiferente, el mensaje habla de la sala entera.
+        luminaria = db.scalars(
+            select(models.Luminaria)
+            .where(models.Luminaria.id_zona == payload.id_zona)
+            .order_by(models.Luminaria.created_at.asc())
+            .limit(1)
+        ).first()
+        if luminaria is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Esa sala todavía no tiene luminarias detectadas.",
+            )
+    else:
+        luminaria = db.get(models.Luminaria, payload.id_luminaria)
+        if luminaria is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Luminaria no encontrada.")
 
     luces, apagar = _describir_luces(payload.luminarias_encendidas)
     mensaje = MENSAJE_TEMPLATE.format(
@@ -64,12 +81,12 @@ def reportar_ocupacion_luz(
     prioridad = "alta" if payload.segundos_sin_ocupacion >= 60 else "media"
 
     evento = models.Evento(
-        id_luminaria=payload.id_luminaria,
+        id_luminaria=luminaria.id_luminaria,
         tipo_evento="alerta_ocupacion",
         descripcion=mensaje,
     )
     recomendacion = models.Recomendacion(
-        id_luminaria=payload.id_luminaria,
+        id_luminaria=luminaria.id_luminaria,
         recomendacion=mensaje,
         prioridad=prioridad,
     )

@@ -86,6 +86,7 @@ def actualizar_estado_luminaria(
     resultado: dict,
     deteccion_id: int | None,
     fecha_hora: dt.datetime,
+    encendida: bool | None = None,
 ) -> None:
     """Detecta transiciones encendida<->apagada y las persiste como lo haria un
     sistema con sensado real: actualiza `luminarias.estado_actual`, registra el
@@ -104,8 +105,14 @@ def actualizar_estado_luminaria(
     No hace `db.commit()`: el caller (router) controla la transaccion junto
     con el resto de escrituras del frame.
     """
+    # `encendida` lo decide el caller cuando la sala tiene varias luminarias
+    # registradas: el detector dice CUANTAS emiten, y el router reparte ese
+    # numero entre ellas (ver `luminarias_auto.repartir_encendidas`). Sin
+    # ese dato se cae al caso de una sola luminaria: emite alguna o ninguna.
     encendidas = resultado.get("num_luminarias_encendidas", 0)
-    estado_nuevo = "encendida" if encendidas >= 1 else "apagada"
+    if encendida is None:
+        encendida = encendidas >= 1
+    estado_nuevo = "encendida" if encendida else "apagada"
     if estado_nuevo == luminaria.estado_actual:
         return
 

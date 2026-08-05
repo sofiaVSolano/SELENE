@@ -4,6 +4,7 @@ import Boton from "../../components/ui/Boton.jsx";
 import { BombilloComputador } from "../../components/ui/Cargando.jsx";
 import Contador from "../../components/ui/Contador.jsx";
 import Lightbox from "../../components/ui/Lightbox.jsx";
+import { filtrarPorSala, TODAS } from "../../lib/salaFiltro.js";
 import { useSpecular } from "../../lib/useSpecular.js";
 import {
   borrarEjecucion,
@@ -239,9 +240,9 @@ function Tarjeta({ e, indice, onBorrar, onAmpliar }) {
   );
 }
 
-export default function VistaCapturas() {
+export default function VistaCapturas({ sala = TODAS }) {
   const m = useMonitoreoCompartido();
-  const [ejecuciones, setEjecuciones] = useState(() => listarEjecuciones());
+  const [crudas, setCrudas] = useState(() => listarEjecuciones());
   const [filtro, setFiltro] = useState("todas");
   const [ampliada, setAmpliada] = useState(null);
   // Borrar todo el historial de un golpe merece un segundo clic de
@@ -253,7 +254,13 @@ export default function VistaCapturas() {
   // entrada, no una espera real.
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => suscribirEjecuciones(setEjecuciones), []);
+  useEffect(() => suscribirEjecuciones(setCrudas), []);
+
+  /* Se filtra AQUÍ, una vez, y de aquí para abajo `ejecuciones` ya es "lo de
+     esta sala". Así los contadores, los filtros y el estado vacío hablan
+     todos del mismo conjunto: si se filtrara solo la rejilla, la cabecera
+     seguiría contando capturas de otras salas. */
+  const ejecuciones = useMemo(() => filtrarPorSala(crudas, sala), [crudas, sala]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setCargando(false), 620);

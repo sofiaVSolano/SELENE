@@ -109,8 +109,21 @@ export const api = {
   // usa la voz del navegador", no un fallo real (ver routers/recorrido.py).
   narrarRecorrido: (texto) => requestBlob("/api/recorrido/narrar", { method: "POST", body: { texto } }),
 
+  // Salas (`zonas` en el modelo). `listZonas` trae cada sala con las
+  // luminarias que SELENE le ha detectado, así que la pantalla se pinta con
+  // una sola llamada. Borrar una sala se lleva su historial en cascada.
+  listZonas: () => request("/api/zonas"),
+  createZona: (payload) => request("/api/zonas", { method: "POST", body: payload }),
+  updateZona: (id, payload) => request(`/api/zonas/${id}`, { method: "PATCH", body: payload }),
+  deleteZona: (id) => request(`/api/zonas/${id}`, { method: "DELETE" }),
+  // Qué historial se perdería al borrar la sala: la confirmación dice un
+  // número en vez de una advertencia genérica.
+  impactoBorradoZona: (id) => request(`/api/zonas/${id}/impacto-borrado`),
+
   listLuminarias: () => request("/api/luminarias"),
   createLuminaria: (payload) => request("/api/luminarias", { method: "POST", body: payload }),
+  updateLuminaria: (id, payload) => request(`/api/luminarias/${id}`, { method: "PATCH", body: payload }),
+  deleteLuminaria: (id) => request(`/api/luminarias/${id}`, { method: "DELETE" }),
 
   analyzeFrame: (formData) => request("/api/deteccion/frame", { method: "POST", body: formData, isForm: true }),
   historial: (idLuminaria, limite = 20) =>
