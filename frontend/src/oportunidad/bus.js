@@ -24,6 +24,8 @@ const oyentes = new Set();
  * @param {number} datos.segundos cuánto lleva la sala vacía
  * @param {number} datos.porcentajeArtificial 0..100 de la escena
  * @param {number} datos.luminariasVisibles cuántas detectó el modelo
+ * @param {number} datos.luminariasEncendidas cuántas de esas están emitiendo
+ *   (es lo que disparó la alerta, ver `evaluarDerroche` en `useMonitoreo`)
  * @param {number} datos.potenciaW potencia declarada de la luminaria
  * @param {number} datos.consumoWh consumo estimado del último tramo
  * @param {number} datos.ahorroWh ahorro potencial estimado de ese tramo
@@ -61,7 +63,8 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
       prioridad: "media",
       segundos: 42,
       porcentajeArtificial: 78,
-      luminariasVisibles: 2,
+      luminariasVisibles: 3,
+      luminariasEncendidas: 2,
       potenciaW: 36,
       consumoWh: 0.42,
       ahorroWh: 0.42,

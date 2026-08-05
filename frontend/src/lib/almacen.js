@@ -51,6 +51,12 @@ export function resumirCaptura(captura) {
     personas: a.personas_detectadas ?? 0,
     ventanas: a.num_ventanas ?? 0,
     luminarias: a.num_luminarias ?? 0,
+    // Cuántas de esas luminarias están emitiendo. Es lo que decide "posible
+    // derroche" (ver `esDerroche` en modules/historial/VistaCapturas.jsx).
+    // Se deja `undefined` si el backend no lo mandó, para poder distinguir
+    // "ninguna encendida" de "captura vieja, guardada antes de que existiera
+    // este dato" — la galería trata los dos casos distinto.
+    luminariasEncendidas: a.num_luminarias_encendidas,
     natural: a.porcentaje_natural ?? 0,
     artificial: a.porcentaje_artificial ?? 0,
     naturalScore: a.natural_score ?? 0,

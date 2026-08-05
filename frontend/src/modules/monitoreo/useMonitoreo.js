@@ -15,13 +15,12 @@ const ANCHO_INFERENCIA = 960; // se reescala antes de enviar: los modelos son pe
 const ANCHO_MINIATURA = 480;
 const MAX_CAPTURAS = 40; // techo de memoria: cada captura guarda dos dataURL
 
-/* Criterio de "derroche": sala vacía con luz artificial dominante. El umbral
-   de segundos es el mismo que ya documenta `routers/alertas.py`; el de
-   porcentaje artificial es el mismo que usa el historial para marcar
-   "posible derroche" (ver `modules/historial/VistaCapturas.jsx`) — un mismo
-   criterio en toda la app, no dos reglas distintas que puedan divergir. */
+/* Criterio de "derroche": sala vacía con al menos una luminaria encendida. El
+   umbral de segundos es el mismo que ya documenta `routers/alertas.py`; el de
+   luminarias encendidas es el mismo que usa el historial para marcar "posible
+   derroche" (ver `esDerroche` en `modules/historial/VistaCapturas.jsx`) — un
+   mismo criterio en toda la app, no dos reglas distintas que puedan divergir. */
 const UMBRAL_SEGUNDOS_VACIA = 10;
-const UMBRAL_ARTIFICIAL_PCT = 55;
 const REPETICION_ALERTA_MS = 3 * 60 * 1000; // no fastidiar: un recordatorio cada 3 min como mucho
 
 /**
@@ -169,6 +168,7 @@ export function useMonitoreo() {
           id_luminaria: idLuminaria,
           segundos_sin_ocupacion: Math.min(86400, Math.round(segundosVacia)),
           porcentaje_artificial: captura.analisis.porcentaje_artificial ?? 0,
+          luminarias_encendidas: Math.max(1, captura.analisis.num_luminarias_encendidas ?? 1),
         });
 
         const luminaria = luminarias.find((l) => l.id_luminaria === idLuminaria);
@@ -185,9 +185,13 @@ export function useMonitoreo() {
           prioridad: r.prioridad,
           segundosSinOcupacion: segundos,
           porcentajeArtificial: a.porcentaje_artificial ?? 0,
-          // Se guarda para que el pie de figura del reporte pueda decir
-          // cuántas luminarias había encendidas (ver `lib/figuras.js`).
+          // Se guardan para que el pie de figura del reporte pueda decir
+          // cuántas luminarias había encendidas (ver `lib/figuras.js`). Son
+          // dos números distintos: cuántas ve el modelo y cuántas de esas
+          // están emitiendo — en un techo con tres lámparas y una prendida,
+          // decir "3 encendidas" sería falso.
           luminariasVisibles: a.num_luminarias ?? 0,
+          luminariasEncendidas: a.num_luminarias_encendidas ?? 0,
         });
 
         /* Las cifras de la tarjeta salen del módulo energético, las mismas
@@ -219,6 +223,7 @@ export function useMonitoreo() {
           segundos,
           porcentajeArtificial: a.porcentaje_artificial ?? 0,
           luminariasVisibles: a.num_luminarias ?? 0,
+          luminariasEncendidas: a.num_luminarias_encendidas ?? 0,
           potenciaW,
           consumoWh,
           ahorroWh,
@@ -236,6 +241,13 @@ export function useMonitoreo() {
    * el primer frame sin personas de la racha actual, no desde que se abrió
    * la cámara— y dispara la alerta al cruzar el umbral, sin repetirla antes
    * de `REPETICION_ALERTA_MS` mientras la sala se mantenga vacía.
+   *
+   * Lo que hace saltar la alerta es que haya una luminaria ENCENDIDA, no que
+   * la luz artificial domine la escena. Son cosas distintas y confundirlas
+   * era el motivo de que de día no avisara nunca: `porcentaje_artificial`
+   * reparte 100 puntos entre natural y artificial, así que basta con que
+   * entre sol por una ventana para que caiga por debajo de cualquier umbral
+   * con la lámpara igual de encendida.
    */
   const evaluarDerroche = useCallback(
     (captura) => {
@@ -248,8 +260,7 @@ export function useMonitoreo() {
       }
       if (!vacanteDesde.current) vacanteDesde.current = captura.ts;
 
-      const artificialAlto = (a.porcentaje_artificial ?? 0) > UMBRAL_ARTIFICIAL_PCT;
-      if (!artificialAlto) return;
+      if ((a.num_luminarias_encendidas ?? 0) < 1) return;
 
       const segundos = (captura.ts.getTime() - vacanteDesde.current.getTime()) / 1000;
       if (segundos < UMBRAL_SEGUNDOS_VACIA) return;

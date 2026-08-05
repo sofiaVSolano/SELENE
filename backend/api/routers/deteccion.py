@@ -106,6 +106,7 @@ def analizar_frame(
         ahorro_estimado_kwh=ahorro_estimado_kwh,
         num_ventanas=resultado["num_ventanas"],
         num_luminarias=resultado["num_luminarias"],
+        num_luminarias_encendidas=resultado["num_luminarias_encendidas"],
         area_ventanas_relativa=resultado["area_ventanas_relativa"],
         area_luminarias_relativa=resultado["area_luminarias_relativa"],
         brillo_ventanas=resultado["brillo_ventanas"],

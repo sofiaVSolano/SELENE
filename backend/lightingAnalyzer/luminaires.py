@@ -85,6 +85,33 @@ class LuminaireAnalyzer:
         self.hotspot_min_area_px = int(hotspot_cfg.get("min_area_px", 4))
         self.hotspot_connectivity = int(hotspot_cfg.get("connectivity", 8))
 
+        on_cfg = analysis_config.get("luminaire_on", {})
+        self.on_bright_pixel_pct_min = float(on_cfg.get("bright_pixel_pct_min", 1.0))
+        self.on_brightness_mean_min = float(on_cfg.get("brightness_mean_min", 180.0))
+        self.on_max_window_overlap = float(on_cfg.get("max_window_overlap", 0.70))
+
+    @staticmethod
+    def _fraccion_dentro_de_ventanas(bbox, ventanas: list[utils.Detection]) -> float:
+        """Que fraccion del area de esta luminaria cae dentro de alguna ventana.
+
+        Se toma el maximo por ventana (no la suma): interesa "esta metida en
+        una ventana", no repartir el area entre varias que se solapan entre si.
+        """
+        x1, y1, x2, y2 = bbox
+        area = max(0, x2 - x1) * max(0, y2 - y1)
+        if area <= 0 or not ventanas:
+            return 0.0
+
+        mayor = 0.0
+        for v in ventanas:
+            vx1, vy1, vx2, vy2 = v.bbox
+            solape = (
+                max(0, min(x2, vx2) - max(x1, vx1))
+                * max(0, min(y2, vy2) - max(y1, vy1))
+            )
+            mayor = max(mayor, solape / area)
+        return mayor
+
     def analyze(self, image_bgr: np.ndarray, detections: list[utils.Detection]) -> list[dict]:
         """Analiza todas las detecciones de clase "Luminaire".
 
@@ -94,6 +121,7 @@ class LuminaireAnalyzer:
         utils.validate_image(image_bgr)
         image_shape = (image_bgr.shape[0], image_bgr.shape[1])
 
+        ventanas = [d for d in detections if d.class_name == "Window"]
         results = []
         for idx, det in enumerate(d for d in detections if d.class_name == "Luminaire"):
             roi = utils.crop_roi(image_bgr, det.bbox)
@@ -110,6 +138,21 @@ class LuminaireAnalyzer:
             )
             hotspot_area_pct = utils.safe_divide(hotspots["area_px"], v_roi.size, default=0.0) * 100.0
             cx, cy = det.centroid
+
+            # Esta lampara, en concreto, esta emitiendo? Se mira solo su ROI:
+            # el balance natural/artificial de la escena (indicators.py) es una
+            # proporcion, y una lampara encendida junto a una ventana soleada
+            # aporta poco al total sin por ello estar apagada.
+            #
+            # Salvo que la "lampara" este metida dentro de una ventana: con el
+            # sol fuerte el detector recorta trozos de ventana como luminarias,
+            # y darlas por encendidas hacia saltar la alerta en una sala vacia
+            # sin ninguna luz prendida (ver `luminaire_on` en el YAML).
+            en_ventana = self._fraccion_dentro_de_ventanas(det.bbox, ventanas)
+            is_lit = en_ventana < self.on_max_window_overlap and (
+                hotspots["bright_pixel_pct"] >= self.on_bright_pixel_pct_min
+                or stats["mean"] >= self.on_brightness_mean_min
+            )
 
             results.append({
                 "luminaire_id": idx,
@@ -128,9 +171,16 @@ class LuminaireAnalyzer:
                 "hotspot_area_pct_of_roi": hotspot_area_pct,
                 "bright_pixel_pct": hotspots["bright_pixel_pct"],
                 "hotspot_mask": hotspots["mask"],
+                "is_lit": is_lit,
+                # Se guarda para poder auditar por que una luminaria brillante
+                # no cuenta como encendida.
+                "window_overlap": round(en_ventana, 4),
                 "centroid_x": cx,
                 "centroid_y": cy,
             })
 
-        logger.info("Luminarias analizadas: %d", len(results))
+        logger.info(
+            "Luminarias analizadas: %d (encendidas: %d)",
+            len(results), sum(1 for r in results if r["is_lit"]),
+        )
         return results

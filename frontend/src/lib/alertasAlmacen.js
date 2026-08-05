@@ -47,6 +47,8 @@ function escribir(lista) {
  * @param {number} datos.segundosSinOcupacion
  * @param {number} datos.porcentajeArtificial
  * @param {number} [datos.luminariasVisibles] cuántas detectó el modelo
+ * @param {number} [datos.luminariasEncendidas] cuántas de esas están emitiendo;
+ *   ausente en alertas guardadas antes de que el backend informara el dato
  */
 export function guardarAlerta(datos) {
   const lista = leerCrudo();

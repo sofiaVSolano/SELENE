@@ -121,6 +121,16 @@ class FrameAnalysisResponse(BaseModel):
     # Monitoreo las muestra por elemento: area ocupada, intensidad y scores.
     num_ventanas: int = 0
     num_luminarias: int = 0
+    num_luminarias_encendidas: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Cuantas de las luminarias detectadas estan emitiendo luz, medido sobre "
+            "los pixeles de cada lampara. Es el criterio de derroche cuando la sala "
+            "esta vacia; `porcentaje_artificial` no lo es, porque reparte 100 puntos "
+            "entre luz natural y artificial y baja al entrar sol aunque la lampara siga encendida."
+        ),
+    )
     area_ventanas_relativa: float = Field(default=0.0, ge=0, le=1, description="Fraccion del frame ocupada por ventanas (0-1).")
     area_luminarias_relativa: float = Field(default=0.0, ge=0, le=1, description="Fraccion del frame ocupada por luminarias (0-1).")
     brillo_ventanas: float = Field(default=0.0, ge=0, le=255, description="Brillo medio (canal V) de las ventanas detectadas.")
@@ -137,6 +147,11 @@ class AlertaOcupacionLuzCreate(BaseModel):
     id_luminaria: uuid.UUID
     segundos_sin_ocupacion: int = Field(ge=1, le=86400)
     porcentaje_artificial: float = Field(ge=0, le=100)
+    # Cuantas luminarias vio encendidas SELENE al disparar la alerta: es el
+    # motivo del aviso y lo que dice el mensaje. El default de 1 no inventa
+    # nada — una alerta solo se reporta habiendo visto al menos una encendida,
+    # asi que es el piso verdadero si un cliente viejo no manda el campo.
+    luminarias_encendidas: int = Field(default=1, ge=1, le=999)
 
 
 class AlertaOcupacionLuzOut(BaseModel):

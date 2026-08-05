@@ -20,6 +20,42 @@ hotspot:
   # Conectividad usada por cv2.connectedComponentsWithStats (4u 8).
   connectivity: 8
 
+# --- Luminaria encendida / apagada (luminaires.py) ---------------------------
+# Decide, POR LUMINARIA, si esa lampara esta emitiendo luz. Es una pregunta
+# distinta de "que porcentaje de la escena es artificial": una lampara
+# encendida a mediodia junto a una ventana sigue estando encendida aunque su
+# aporte relativo al total de la escena sea minoritario. Por eso el criterio
+# mira SOLO los pixeles del ROI de la lampara, no el balance de la escena.
+#
+# Basta con que se cumpla UNO de los dos: una lampara puede saturar el sensor
+# (bulbo desnudo, muchos pixeles clipeados) o no saturarlo pero verse
+# uniformemente muy brillante (difusor grande, panel LED).
+#
+# Valores calibrados contra la escena real de test_media/casaSofia.jpeg, donde
+# el detector encuentra 3 luminarias y solo 1 esta encendida:
+#     encendida -> brillo medio 223.2, pixeles saturados 68.36%
+#     apagadas  -> brillo medio  73.5 /  67.7, pixeles saturados 0.00%
+# La separacion es amplia, asi que los umbrales no van pegados a ningun caso.
+luminaire_on:
+  # % minimo de pixeles del ROI por encima del umbral de hotspot.
+  bright_pixel_pct_min: 1.0
+  # Brillo medio (canal V, 0-255) del ROI que basta por si solo.
+  brightness_mean_min: 180.0
+  # Fraccion del area de la luminaria que, si cae dentro de una ventana ya
+  # detectada, la descarta como "encendida": lo que brilla ahi es luz de dia
+  # entrando, no una lampara. Por una ventana la energia entra, no se escapa.
+  #
+  # Existe porque el detector recorta astillas de ventana como luminarias
+  # cuando el sol pega fuerte: en una escena de solo ventana subida de brillo
+  # sacaba un "Luminaire" de 19x4 px (0.05% del encuadre, conf 0.57) dentro
+  # del recuadro de la ventana, y eso disparaba una alerta con la sala vacia
+  # y ninguna lampara prendida.
+  #
+  # Contrapartida asumida: una lampara colgada JUSTO delante de una ventana,
+  # tapandola, se daria por luz natural y no se avisaria. Es una geometria
+  # rara; el falso positivo era de todos los dias soleados.
+  max_window_overlap: 0.70
+
 # --- Normalizacion de componentes para Natural/Artificial Score -------------
 # Cada componente de indicators.py se normaliza a [0, 1] mediante
 # min(valor_observado / saturacion, 1.0). La "saturacion" es el valor a partir

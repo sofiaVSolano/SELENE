@@ -132,6 +132,12 @@ def analyze_frame(frame_bgr: np.ndarray) -> dict:
         # lightingAnalyzer ya los calcula, solo no se exponian en la respuesta HTTP.
         "num_ventanas": lighting_summary["windows"],
         "num_luminarias": lighting_summary["luminaires"],
+        # Cuantas de las luminarias detectadas estan realmente emitiendo. Es
+        # lo que decide "hay derroche" cuando la sala esta vacia:
+        # `porcentaje_artificial` no sirve para eso porque es un reparto
+        # relativo frente a la luz natural y se hunde en cuanto entra sol,
+        # aunque la lampara siga encendida (ver lightingAnalyzer/luminaires.py).
+        "num_luminarias_encendidas": lighting_summary["luminaires_lit"],
         "area_ventanas_relativa": round(min(1.0, sum(w["relative_area"] for w in ventanas)), 4),
         "area_luminarias_relativa": round(min(1.0, sum(l["relative_area"] for l in luminarias_detectadas)), 4),
         "brillo_ventanas": round(_promedio_brillo(ventanas), 4),

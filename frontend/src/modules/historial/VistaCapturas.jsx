@@ -44,10 +44,23 @@ const FILTROS = [
   { clave: "derroche", etiqueta: "posible derroche" },
 ];
 
+/* Sala vacía con al menos una luminaria encendida: exactamente el caso que
+   SELENE existe para detectar. Mismo criterio que usa `useMonitoreo` para
+   avisar — uno solo en toda la app, no dos reglas que puedan divergir.
+
+   Antes se pedía además `artificial > 55`, y eso dejaba pasar el caso más
+   común de todos: `porcentaje_artificial` reparte 100 puntos entre luz
+   natural y artificial, así que en cuanto la cámara ve una ventana el valor
+   se hunde aunque la lámpara siga encendida — de día no marcaba nada. Que
+   entre sol no es un atenuante, es lo contrario: una luz encendida con la
+   sala vacía Y de día se desperdicia igual o más. */
 export function esDerroche(e) {
-  // Sala vacía con luz artificial dominante: exactamente el caso que SELENE
-  // existe para detectar. Mismo umbral que usa `useMonitoreo` para hablar.
-  return e.personas === 0 && e.artificial > 55;
+  if (e.personas !== 0) return false;
+  // Capturas guardadas antes de que el backend informara qué luminarias
+  // emiten: se las juzga con el criterio viejo en vez de darlas por buenas,
+  // para no vaciar de golpe el historial ya acumulado.
+  if (e.luminariasEncendidas === undefined) return e.artificial > 55;
+  return e.luminariasEncendidas > 0;
 }
 
 function Tarjeta({ e, indice, onBorrar, onAmpliar }) {

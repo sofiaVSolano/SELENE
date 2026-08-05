@@ -45,11 +45,13 @@ class Settings(BaseSettings):
     energy_model_dir: str = ""
     co2_emission_factor_kg_per_kwh: float = 0.126
     energy_context_config_path: str = "configs/energy_context.yaml"
-    # % de iluminacion artificial a partir del cual se considera que una
-    # luminaria esta "encendida" para efectos de tracking real de consumo
-    # (ver energy/vision_bridge.py). Mismo umbral que el frontend usaba solo
-    # para la alerta de ocupacion (CameraPanel.jsx -> LUZ_ENCENDIDA_UMBRAL).
-    luz_encendida_umbral_pct: float = 35.0
+    # Aqui vivia `luz_encendida_umbral_pct`: el % de iluminacion artificial a
+    # partir del cual se daba una luminaria por "encendida". Se elimino porque
+    # medía la cosa equivocada — `porcentaje_artificial` es un reparto relativo
+    # frente a la luz natural, no un indicador de si la lampara emite. Ahora
+    # `energy/vision_bridge.py` cuenta luminarias emitiendo, que se mide sobre
+    # los pixeles de cada lampara; sus umbrales viven en
+    # `configs/lighting_analysis.yaml: luminaire_on`.
 
     # --- Asistente de voz (backend/api/assistant/) ---------------------------
     # `gpt_api_key` lee la variable GPT_API_KEY ya presente en backend/.env

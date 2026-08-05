@@ -29,7 +29,11 @@ function deAlerta(a) {
     luminaria: a.luminaria || null,
     // Una alerta de derroche es, por definición, una sala sin nadie.
     personas: 0,
-    luminarias: a.luminariasVisibles ?? null,
+    // El pie de figura dice "N luminarias activas" (ver `describir_figura` en
+    // `assistant/report_data.py`), así que aquí van las ENCENDIDAS y no las
+    // detectadas: el modelo también dibuja las apagadas. Las alertas viejas
+    // no traen el dato y caen a las visibles, que es lo que se guardó.
+    luminarias: a.luminariasEncendidas ?? a.luminariasVisibles ?? null,
     ventanas: null,
     porcentaje_artificial: a.porcentajeArtificial ?? null,
     origen: "alerta",
@@ -46,7 +50,7 @@ function deCaptura(c) {
     zona: null,
     luminaria: null,
     personas: c.personas ?? null,
-    luminarias: c.luminarias ?? null,
+    luminarias: c.luminariasEncendidas ?? c.luminarias ?? null,
     ventanas: c.ventanas ?? null,
     porcentaje_artificial: c.artificial ?? null,
     origen: "captura",

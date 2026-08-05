@@ -116,8 +116,9 @@ class LightingAnalyzer:
         Returns
         -------
         dict con, como minimo, las claves: scene_brightness, windows,
-        luminaires, natural_score, artificial_score, natural_percentage,
-        artificial_percentage, lighting_type, recommendation. Ademas incluye
+        luminaires, luminaires_lit, natural_score, artificial_score,
+        natural_percentage, artificial_percentage, lighting_type,
+        recommendation. Ademas incluye
         `details` (resultados numericos completos por ROI) y `artifacts`
         (rutas de las graficas/reportes guardados en disco, o `None` si
         `generate_report=False`).
@@ -191,6 +192,11 @@ class LightingAnalyzer:
             "scene_brightness": round(scene_result["mean"], 4),
             "windows": len(window_results),
             "luminaires": len(luminaire_results),
+            # Cuantas de esas luminarias estan EMITIENDO (ver luminaires.py).
+            # Es el dato que responde "hay luz encendida?", que no es lo mismo
+            # que artificial_percentage: ese es un reparto relativo frente a la
+            # luz natural y baja cuando entra sol, aunque la lampara siga dando.
+            "luminaires_lit": sum(1 for l in luminaire_results if l["is_lit"]),
             "natural_score": round(indicators_result["natural_score"], 4),
             "artificial_score": round(indicators_result["artificial_score"], 4),
             "natural_percentage": indicators_result["natural_percentage"],
@@ -296,8 +302,12 @@ class LightingAnalyzer:
         lines.append(f"- **Natural:** {indicators['natural_percentage']:.1f}%")
         lines.append(f"- **Artificial:** {indicators['artificial_percentage']:.1f}%")
         lines.append(f"- **Brillo promedio de la escena (canal V):** {scene['mean']:.2f} / 255")
+        encendidas = sum(1 for l in luminaires if l["is_lit"])
         lines.append(f"- **Ventanas detectadas:** {len(windows)}")
-        lines.append(f"- **Luminarias detectadas:** {len(luminaires)}")
+        lines.append(
+            f"- **Luminarias detectadas:** {len(luminaires)} "
+            f"({encendidas} encendida{'' if encendidas == 1 else 's'})"
+        )
         lines.append(f"- **Recomendacion:** {recommendation}")
         lines.append("")
 
@@ -344,13 +354,14 @@ class LightingAnalyzer:
         lines.append("")
         if luminaires:
             lines.append(
-                "| # | Confianza | Area (px²) | Area relativa | Brillo medio | Contraste | "
+                "| # | Estado | Confianza | Area (px²) | Area relativa | Brillo medio | Contraste | "
                 "Hotspots | % Area hotspot | % Pixeles muy brillantes | Centroide |"
             )
-            lines.append("|---|---|---|---|---|---|---|---|---|---|")
+            lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
             for l in luminaires:
                 lines.append(
-                    f"| {l['luminaire_id']} | {l['confidence']:.2f} | {l['area_px']} | "
+                    f"| {l['luminaire_id']} | {'encendida' if l['is_lit'] else 'apagada'} | "
+                    f"{l['confidence']:.2f} | {l['area_px']} | "
                     f"{l['relative_area']:.2%} | {l['brightness_mean']:.1f} | {l['contrast']:.3f} | "
                     f"{l['hotspot_count']} | {l['hotspot_area_pct_of_roi']:.2f}% | "
                     f"{l['bright_pixel_pct']:.2f}% | ({l['centroid_x']:.0f}, {l['centroid_y']:.0f}) |"
@@ -401,6 +412,7 @@ class LightingAnalyzer:
         image_name, scene, windows, luminaires, indicators, lighting_type, recommendation, graph_paths,
     ) -> str:
         now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        encendidas = sum(1 for l in luminaires if l["is_lit"])
 
         def _img(key: str, alt: str) -> str:
             if key not in graph_paths:
@@ -415,13 +427,15 @@ class LightingAnalyzer:
         ) or "<tr><td colspan='7'><em>No se detectaron ventanas.</em></td></tr>"
 
         luminaire_rows = "".join(
-            f"<tr><td>{l['luminaire_id']}</td><td>{l['confidence']:.2f}</td><td>{l['area_px']}</td>"
+            f"<tr><td>{l['luminaire_id']}</td>"
+            f"<td>{'encendida' if l['is_lit'] else 'apagada'}</td>"
+            f"<td>{l['confidence']:.2f}</td><td>{l['area_px']}</td>"
             f"<td>{l['relative_area']:.2%}</td><td>{l['brightness_mean']:.1f}</td>"
             f"<td>{l['contrast']:.3f}</td><td>{l['hotspot_count']}</td>"
             f"<td>{l['hotspot_area_pct_of_roi']:.2f}%</td><td>{l['bright_pixel_pct']:.2f}%</td>"
             f"<td>({l['centroid_x']:.0f}, {l['centroid_y']:.0f})</td></tr>"
             for l in luminaires
-        ) or "<tr><td colspan='10'><em>No se detectaron luminarias.</em></td></tr>"
+        ) or "<tr><td colspan='11'><em>No se detectaron luminarias.</em></td></tr>"
 
         natural_components = "".join(f"<li>{k}: {v:.3f}</li>" for k, v in indicators["natural_components"].items())
         artificial_components = "".join(f"<li>{k}: {v:.3f}</li>" for k, v in indicators["artificial_components"].items())
@@ -486,7 +500,8 @@ por computador sobre esta imagen RGB, no una medicion fisica de iluminancia (lux
    <span class="badge badge-artificial">Artificial {indicators['artificial_percentage']:.1f}%</span></p>
 <p><b>Tipo de iluminacion:</b> {lighting_type}</p>
 <p><b>Brillo promedio de la escena (canal V):</b> {scene['mean']:.2f} / 255</p>
-<p><b>Ventanas detectadas:</b> {len(windows)} &nbsp;|&nbsp; <b>Luminarias detectadas:</b> {len(luminaires)}</p>
+<p><b>Ventanas detectadas:</b> {len(windows)} &nbsp;|&nbsp; <b>Luminarias detectadas:</b> {len(luminaires)}
+   ({encendidas} encendida{'' if encendidas == 1 else 's'})</p>
 <p><b>Recomendacion:</b> {recommendation}</p>
 </div>
 
@@ -512,7 +527,7 @@ por computador sobre esta imagen RGB, no una medicion fisica de iluminancia (lux
 
 <h2>4. Luminarias</h2>
 <div class="table-scroll"><table>
-<tr><th>#</th><th>Confianza</th><th>Area (px²)</th><th>Area relativa</th><th>Brillo medio</th><th>Contraste</th>
+<tr><th>#</th><th>Estado</th><th>Confianza</th><th>Area (px²)</th><th>Area relativa</th><th>Brillo medio</th><th>Contraste</th>
 <th>Hotspots</th><th>% Area hotspot</th><th>% Pixeles muy brillantes</th><th>Centroide</th></tr>
 {luminaire_rows}
 </table></div>

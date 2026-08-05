@@ -130,15 +130,24 @@ export default function TarjetaOportunidad({ datos, onEntendido, onDescartar, de
           </Renglon>
 
           <Renglon etiqueta="luminarias encendidas">
-            {datos.luminariasVisibles > 0 ? (
+            {/* Las ENCENDIDAS, no las detectadas: el modelo dibuja también las
+                apagadas, y en un techo de tres lámparas con una prendida el
+                renglón decía "3" bajo una etiqueta que promete otra cosa. */}
+            {datos.luminariasEncendidas > 0 ? (
               <>
-                <Contador valor={datos.luminariasVisibles} decimales={0} duracion={0.5} />
-                <span className="ml-1.5 text-[11px] text-ink-3">en el encuadre</span>
+                <Contador valor={datos.luminariasEncendidas} decimales={0} duracion={0.5} />
+                <span className="ml-1.5 text-[11px] text-ink-3">
+                  {datos.luminariasVisibles > datos.luminariasEncendidas
+                    ? `de ${datos.luminariasVisibles} en el encuadre`
+                    : "en el encuadre"}
+                </span>
               </>
             ) : (
-              /* El modelo no siempre dibuja la luminaria (queda fuera del
-                 encuadre, o el techo la tapa). El porcentaje artificial de la
-                 escena sí la delata, y es el dato que disparó la alerta. */
+              /* Alertas guardadas antes de que el backend contara luminarias
+                 encendidas: entonces el dato que disparaba el aviso era el
+                 porcentaje artificial de la escena, así que es lo que se
+                 muestra para que la tarjeta vieja siga cuadrando con su
+                 propio motivo. Las alertas nuevas no caen por aquí. */
               <>
                 <Contador
                   valor={datos.porcentajeArtificial ?? 0}

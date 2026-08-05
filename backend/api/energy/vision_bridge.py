@@ -19,7 +19,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..config import settings
 from . import context
 from .schemas import EscenarioVision
 
@@ -88,17 +87,25 @@ def actualizar_estado_luminaria(
     deteccion_id: int | None,
     fecha_hora: dt.datetime,
 ) -> None:
-    """Detecta transiciones encendida<->apagada (umbral `luz_encendida_umbral_pct`
-    sobre `porcentaje_artificial`) y las persiste como lo haria un sistema con
-    sensado real: actualiza `luminarias.estado_actual`, registra el evento
-    ('encendido'/'apagado') y abre/cierra el ciclo correspondiente en
+    """Detecta transiciones encendida<->apagada y las persiste como lo haria un
+    sistema con sensado real: actualiza `luminarias.estado_actual`, registra el
+    evento ('encendido'/'apagado') y abre/cierra el ciclo correspondiente en
     `consumo_energetico` (con su duracion y kWh reales al cerrarlo).
+
+    El estado se decide contando luminarias que emiten (`num_luminarias_encendidas`,
+    medido sobre los pixeles de cada lampara). Antes se comparaba
+    `porcentaje_artificial` contra un umbral, y eso no medía si la lampara estaba
+    encendida sino cuanto pesaba frente a la luz natural: en una sala con ventana
+    el valor oscilaba solo con las nubes y la luminaria "se apagaba" y "se
+    encendia" sola entre frames consecutivos, abriendo y cerrando ciclos de
+    consumo falsos (p. ej. 2026-08-05 16:02: 27.8% -> 50.9% -> 24.0% -> 40.2%,
+    cuatro transiciones sin que nadie tocara el interruptor).
 
     No hace `db.commit()`: el caller (router) controla la transaccion junto
     con el resto de escrituras del frame.
     """
-    encendida = resultado["porcentaje_artificial"] >= settings.luz_encendida_umbral_pct
-    estado_nuevo = "encendida" if encendida else "apagada"
+    encendidas = resultado.get("num_luminarias_encendidas", 0)
+    estado_nuevo = "encendida" if encendidas >= 1 else "apagada"
     if estado_nuevo == luminaria.estado_actual:
         return
 
@@ -110,7 +117,10 @@ def actualizar_estado_luminaria(
             id_deteccion_origen=deteccion_id,
             fecha_hora_origen=fecha_hora,
             tipo_evento="encendido",
-            descripcion=f"Iluminacion artificial detectada por vision ({resultado['porcentaje_artificial']:.1f}%).",
+            descripcion=(
+                f"Luminaria encendida detectada por vision "
+                f"({encendidas} de {resultado.get('num_luminarias', 0)} emitiendo)."
+            ),
         ))
         db.add(models.ConsumoEnergetico(
             id_luminaria=luminaria.id_luminaria,
@@ -138,5 +148,8 @@ def actualizar_estado_luminaria(
         id_deteccion_origen=deteccion_id,
         fecha_hora_origen=fecha_hora,
         tipo_evento="apagado",
-        descripcion=f"Sin iluminacion artificial detectada por vision ({resultado['porcentaje_artificial']:.1f}%).",
+        descripcion=(
+            f"Sin luminarias encendidas detectadas por vision "
+            f"({resultado.get('num_luminarias', 0)} visibles, ninguna emitiendo)."
+        ),
     ))
