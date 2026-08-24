@@ -416,7 +416,7 @@ export default function VistaCapturas({ sala = TODAS }) {
                 e={e}
                 indice={i}
                 onBorrar={(id) => {
-                  setEjecuciones(borrarEjecucion(id));
+                  borrarEjecucion(id); // avisa a los suscriptores (setCrudas) por su cuenta
                   m.eliminarCaptura(id); // misma foto, misma id, también en la línea de tiempo
                 }}
                 onAmpliar={setAmpliada}
