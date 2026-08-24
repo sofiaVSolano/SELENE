@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -31,7 +31,8 @@ con precision, dilo explicitamente ("todavia no hay historial suficiente...") en
 los ultimos analisis...").
 - Puedes explicar como funciona el sistema, los tipos de simulacion/recomendacion disponibles y sus \
 parametros, aunque no haya datos historicos todavia.
-- Mantente en el dominio de consumo energetico, iluminacion y ahorro de SELENE; si preguntan algo \
+- Mantente en el dominio de SELENE: consumo energetico, iluminacion y ahorro, pero tambien salas, \
+alertas de derroche, imagenes guardadas en el historial y reportes generados; si preguntan algo \
 fuera de ese dominio, indica amablemente que no es tu area."""
 
 _DESCRIPCION_SIMULACIONES = {
@@ -46,7 +47,52 @@ def _formatear_numero(valor: float | None, sufijo: str = "") -> str:
     return "sin datos" if valor is None else f"{valor:.2f}{sufijo}"
 
 
-def construir_contexto_datos(db: Session) -> str:
+def construir_contexto_salas(db: Session, id_usuario) -> str:
+    """Snapshot en texto plano de salas, alertas de derroche, imagenes del
+    historial y reportes -- datos que no vienen de `api.energy` sino de las
+    tablas `zonas`/`recomendaciones`/`detecciones_ocupacion`/`reportes`
+    directamente. Conteos simples (`func.count()`), no promedios: no hace
+    falta el bucketing en Python que usa `historical.py` para este volumen."""
+    inicio_hoy = dt.datetime.now(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _contar(modelo, *condiciones) -> int:
+        return int(db.scalar(select(func.count()).select_from(modelo).where(*condiciones)) or 0)
+
+    zonas = db.scalars(select(models.Zona).order_by(models.Zona.nombre)).all()
+
+    lineas: list[str] = ["", "=== SALAS, ALERTAS DE DERROCHE, IMAGENES Y REPORTES ==="]
+
+    if not zonas:
+        lineas.append("Todavia no hay salas registradas.")
+    else:
+        lineas.append("Por sala (imagenes guardadas en el historial, alertas de derroche total y de hoy):")
+        for zona in zonas:
+            imagenes = _contar(
+                models.DeteccionOcupacion,
+                models.DeteccionOcupacion.id_zona == zona.id_zona,
+                models.DeteccionOcupacion.imagen_referencia.is_not(None),
+            )
+            alertas_total = _contar(models.Recomendacion, models.Recomendacion.id_zona == zona.id_zona)
+            alertas_hoy = _contar(
+                models.Recomendacion,
+                models.Recomendacion.id_zona == zona.id_zona,
+                models.Recomendacion.fecha_hora >= inicio_hoy,
+            )
+            lineas.append(
+                f"- {zona.nombre}: {imagenes} imagen(es) guardadas, {alertas_total} alerta(s) de derroche "
+                f"en total ({alertas_hoy} hoy)."
+            )
+
+    alertas_hoy_global = _contar(models.Recomendacion, models.Recomendacion.fecha_hora >= inicio_hoy)
+    lineas.append(f"Alertas de derroche generadas HOY (todas las salas): {alertas_hoy_global}.")
+
+    reportes_usuario = _contar(models.Reporte, models.Reporte.id_usuario == id_usuario)
+    lineas.append(f"Reportes generados por este usuario: {reportes_usuario}.")
+
+    return "\n".join(lineas)
+
+
+def construir_contexto_datos(db: Session, id_usuario) -> str:
     """Snapshot en texto plano del historial energetico persistido (tablas del
     modulo `api.energy`) + parametros del sistema, para inyectar como contexto."""
     ahora = dt.datetime.now(dt.timezone.utc)
@@ -112,6 +158,8 @@ def construir_contexto_datos(db: Session) -> str:
         "las cifras son una aproximacion, no una medicion de un medidor fisico."
     )
 
+    lineas.append(construir_contexto_salas(db, id_usuario))
+
     return "\n".join(lineas)
 
 
@@ -134,7 +182,7 @@ def mensajes_historial(db: Session, id_usuario, limite: int = 6) -> list[dict]:
 
 
 def construir_mensajes(db: Session, id_usuario, pregunta: str) -> list[dict]:
-    contexto = construir_contexto_datos(db)
+    contexto = construir_contexto_datos(db, id_usuario)
     mensajes = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{contexto}"}]
     mensajes.extend(mensajes_historial(db, id_usuario))
     mensajes.append({"role": "user", "content": pregunta})

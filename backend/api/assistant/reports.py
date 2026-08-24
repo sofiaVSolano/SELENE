@@ -222,7 +222,7 @@ def _datos_detallado(
     se siente hecho a medida y a la vez ninguna cifra puede estar inventada.
     """
     ahora = dt.datetime.now(dt.timezone.utc)
-    contexto = context_builder.construir_contexto_datos(db)
+    contexto = context_builder.construir_contexto_datos(db, usuario.id_usuario)
 
     por_luminaria = historical.resumen_por_luminaria(db, desde=ahora - dt.timedelta(days=30), id_zona=id_zona)
     if por_luminaria:
