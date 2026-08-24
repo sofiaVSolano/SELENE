@@ -65,6 +65,24 @@ _COLUMNAS_NUEVAS: tuple[tuple[str, str, str], ...] = (
         "potencia_luminaria_w",
         "ALTER TABLE zonas ADD COLUMN potencia_luminaria_w REAL NOT NULL DEFAULT 18.0",
     ),
+    # Historial servidor-side de detecciones (antes solo vivia en la
+    # respuesta HTTP y en localStorage del navegador, ver api/models.py::
+    # DeteccionOcupacion y api/imagenes.py).
+    ("detecciones_ocupacion", "id_zona", "ALTER TABLE detecciones_ocupacion ADD COLUMN id_zona TEXT REFERENCES zonas(id_zona)"),
+    ("detecciones_ocupacion", "num_ventanas", "ALTER TABLE detecciones_ocupacion ADD COLUMN num_ventanas INTEGER NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "num_luminarias", "ALTER TABLE detecciones_ocupacion ADD COLUMN num_luminarias INTEGER NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "num_luminarias_encendidas", "ALTER TABLE detecciones_ocupacion ADD COLUMN num_luminarias_encendidas INTEGER NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "porcentaje_natural", "ALTER TABLE detecciones_ocupacion ADD COLUMN porcentaje_natural REAL NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "porcentaje_artificial", "ALTER TABLE detecciones_ocupacion ADD COLUMN porcentaje_artificial REAL NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "natural_score", "ALTER TABLE detecciones_ocupacion ADD COLUMN natural_score REAL NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "artificial_score", "ALTER TABLE detecciones_ocupacion ADD COLUMN artificial_score REAL NOT NULL DEFAULT 0"),
+    ("detecciones_ocupacion", "consumo_estimado_kwh", "ALTER TABLE detecciones_ocupacion ADD COLUMN consumo_estimado_kwh REAL"),
+    ("detecciones_ocupacion", "ahorro_estimado_kwh", "ALTER TABLE detecciones_ocupacion ADD COLUMN ahorro_estimado_kwh REAL"),
+    ("detecciones_ocupacion", "recomendacion", "ALTER TABLE detecciones_ocupacion ADD COLUMN recomendacion TEXT"),
+    # Alertas -> imagen de la deteccion que las disparo (ver routers/alertas.py).
+    ("recomendaciones", "id_deteccion_origen", "ALTER TABLE recomendaciones ADD COLUMN id_deteccion_origen INTEGER"),
+    ("recomendaciones", "id_zona", "ALTER TABLE recomendaciones ADD COLUMN id_zona TEXT REFERENCES zonas(id_zona)"),
+    ("recomendaciones", "segundos_sin_ocupacion", "ALTER TABLE recomendaciones ADD COLUMN segundos_sin_ocupacion INTEGER"),
 )
 
 

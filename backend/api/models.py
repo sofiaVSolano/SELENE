@@ -136,10 +136,36 @@ class DeteccionOcupacion(Base):
     id_deteccion: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
+    # La sala se sella AQUI, con la que estaba activa al capturar (igual que
+    # hacia `resumirCaptura` en el `localStorage` del frontend, ver
+    # `historial-por-sala-selene`): no se deduce despues via `luminaria.zona`
+    # porque una luminaria podria, en teoria, cambiar de sala entre la captura
+    # y la consulta, y eso reescribiria la procedencia de historial ya tomado.
+    id_zona: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("zonas.id_zona"))
     personas_detectadas: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
     confianza: Mapped[float | None] = mapped_column(Numeric(5, 4))
+    # Ruta relativa (dentro de `settings.project_root`) al JPEG en disco, no
+    # una URL: la URL publica se arma en el router con `request.url_for(...)`
+    # segun donde este corriendo la API. Ver `api/imagenes.py`.
     imagen_referencia: Mapped[str | None] = mapped_column(Text)
     estado_ocupacion: Mapped[str] = mapped_column(EstadoOcupacion, nullable=False)
+
+    # --- Snapshot del analisis completo de este fotograma -------------------
+    # Antes solo vivian en la respuesta HTTP de `POST /api/deteccion/frame` y
+    # de ahi pasaban a `localStorage` (`lib/almacen.js` del frontend). Se
+    # persisten aqui para que el historial sea del servidor, no del navegador:
+    # sobrevive a "borrar datos de navegacion", es el mismo en cualquier
+    # dispositivo, y no tiene el tope de 60 capturas que tenia localStorage.
+    num_ventanas: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    num_luminarias: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    num_luminarias_encendidas: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    porcentaje_natural: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, server_default="0")
+    porcentaje_artificial: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, server_default="0")
+    natural_score: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False, server_default="0")
+    artificial_score: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False, server_default="0")
+    consumo_estimado_kwh: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    ahorro_estimado_kwh: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    recomendacion: Mapped[str | None] = mapped_column(Text)
 
 
 class Evento(Base):
@@ -197,6 +223,22 @@ class Recomendacion(Base):
     id_recomendacion: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_luminaria: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("luminarias.id_luminaria"), nullable=False)
     id_patron: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("patrones_uso.id_patron"))
+    # Sala activa cuando se disparó la alerta, sellada aquí y no deducida de
+    # `luminaria.id_zona` — esa luminaria se puede reasignar de sala después
+    # (ver `editar_luminaria`), y eso reescribiría a qué sala perteneció esta
+    # alerta ya ocurrida.
+    id_zona: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("zonas.id_zona"))
+    # Detección cuyo fotograma disparó esta alerta (ver
+    # `routers/alertas.py`): así la alerta reutiliza la imagen ya guardada en
+    # `detecciones_ocupacion.imagen_referencia` en vez de duplicarla. Sin FK
+    # real (igual que `eventos.id_deteccion_origen`): al borrar la detección
+    # de origen, el router de deteccion pone esto en NULL a mano — la alerta
+    # y su mensaje se conservan, solo pierde la imagen asociada.
+    id_deteccion_origen: Mapped[int | None] = mapped_column(BigInteger)
+    # Cuánto llevaba la sala vacía al disparar la alerta: es un dato DE LA
+    # ALERTA, no de la detección de origen (esa solo describe el fotograma),
+    # así que no se puede sacar del join con `detecciones_ocupacion`.
+    segundos_sin_ocupacion: Mapped[int | None] = mapped_column(SmallInteger)
     fecha_hora: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
     recomendacion: Mapped[str] = mapped_column(Text, nullable=False)
     prioridad: Mapped[str] = mapped_column(Prioridad, nullable=False, server_default="media")

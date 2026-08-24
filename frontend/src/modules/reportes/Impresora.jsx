@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SelectorSala from "../../components/SelectorSala.jsx";
 import Boton from "../../components/ui/Boton.jsx";
 import VisorDocumento from "../../components/ui/VisorDocumento.jsx";
@@ -81,8 +81,20 @@ export default function Impresora({ claveInicial = "general", instruccionesInici
   /* Las figuras se recalculan al cambiar de sala (si no, la evidencia visual
      sería de otra sala que las cifras) pero NO en cada render: una captura
      nueva entrando a media impresión cambiaría el documento a mitad de
-     camino. */
-  const figuras = useMemo(() => figurasParaReporte(sala), [sala]);
+     camino.
+
+     Es async porque ahora las imágenes viven en el servidor (`lib/figuras.js`)
+     y hay que descargarlas y volverlas base64 antes de poder adjuntarlas. */
+  const [figuras, setFiguras] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    figurasParaReporte(sala).then((f) => {
+      if (vivo) setFiguras(f);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [sala]);
 
   const detenerRodillo = useRef(null);
   const vivo = useRef(true);

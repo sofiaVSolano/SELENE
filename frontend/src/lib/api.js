@@ -129,6 +129,39 @@ export const api = {
   historial: (idLuminaria, limite = 20) =>
     request(`/api/deteccion/historial/${idLuminaria}?limite=${limite}`),
 
+  // Historial de capturas (galería), servido desde la base de datos: la
+  // imagen y el snapshot completo del análisis viven en el servidor, no en
+  // localStorage (ver `GET /api/deteccion/historial` en el backend).
+  historialCapturas: (idZona, { limite = 60, offset = 0 } = {}) => {
+    const params = new URLSearchParams({ limite, offset });
+    if (idZona) params.set("id_zona", idZona);
+    return request(`/api/deteccion/historial?${params}`);
+  },
+  eliminarCaptura: (idDeteccion) => request(`/api/deteccion/${idDeteccion}`, { method: "DELETE" }),
+  vaciarCapturas: (idZona) => {
+    const params = idZona ? `?${new URLSearchParams({ id_zona: idZona })}` : "";
+    return request(`/api/deteccion/historial${params}`, { method: "DELETE" });
+  },
+
+  // Historial de alertas (galería), servido desde la base de datos: zona,
+  // luminaria e imagen se resuelven en el servidor (ver `GET /api/alertas/historial`).
+  historialAlertasSala: (idZona, { limite = 40, offset = 0 } = {}) => {
+    const params = new URLSearchParams({ limite, offset });
+    if (idZona) params.set("id_zona", idZona);
+    return request(`/api/alertas/historial?${params}`);
+  },
+  eliminarAlerta: (idRecomendacion) => request(`/api/alertas/${idRecomendacion}`, { method: "DELETE" }),
+  vaciarAlertas: (idZona) => {
+    const params = idZona ? `?${new URLSearchParams({ id_zona: idZona })}` : "";
+    return request(`/api/alertas/historial${params}`, { method: "DELETE" });
+  },
+
+  // Blob de una imagen guardada en el servidor (detección o alerta: ambas
+  // devuelven la misma ruta relativa en su campo `imagen_url`). Requiere el
+  // Bearer token, así que no se puede poner directo en un <img src> — ver
+  // `lib/useImagenSegura.js`.
+  imagenPorRuta: (ruta) => requestBlob(ruta),
+
   // --- Modulo energetico: prediccion, simulaciones e historico -------------
   // El backend ya exponia todo esto; el frontend anterior no lo consumia.
   analizarEnergia: (payload) => request("/api/energia/analizar", { method: "POST", body: payload }),

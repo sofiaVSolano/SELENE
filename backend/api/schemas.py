@@ -233,6 +233,49 @@ class FrameAnalysisResponse(BaseModel):
     natural_score: float = Field(default=0.0, ge=0, le=1)
     artificial_score: float = Field(default=0.0, ge=0, le=1)
     confianza_max_persona: float = Field(default=0.0, ge=0, le=1)
+    # URL para pedir la imagen guardada de este fotograma (`GET
+    # /api/deteccion/{id_deteccion}/imagen`, requiere el Bearer token de
+    # siempre). None si no habia `id_zona`/`id_luminaria` que anclar, o si la
+    # escritura a disco fallo (ver `imagenes.guardar_imagen`).
+    imagen_url: str | None = None
+
+
+# --- Historial de detecciones (galeria del frontend) --------------------------
+
+
+class DeteccionHistorialItem(BaseModel):
+    """Una fila de la galería de Historial · Capturas. Es el mismo snapshot
+    que antes vivía solo en `localStorage` (`lib/almacen.js` del frontend,
+    función `resumirCaptura`), ahora servido desde la base de datos."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id_deteccion: int
+    fecha_hora: dt.datetime
+    id_zona: uuid.UUID | None = None
+    zona: str | None = None
+    personas_detectadas: int
+    estado_ocupacion: str
+    num_ventanas: int
+    num_luminarias: int
+    num_luminarias_encendidas: int
+    porcentaje_natural: float
+    porcentaje_artificial: float
+    natural_score: float
+    artificial_score: float
+    consumo_estimado_kwh: float | None
+    ahorro_estimado_kwh: float | None
+    recomendacion: str | None
+    confianza: float | None
+    imagen_url: str | None = None
+
+
+class ImpactoBorradoHistorialOut(BaseModel):
+    """Cuántas detecciones se verían afectadas por un borrado masivo — mismo
+    espíritu que `ImpactoBorradoOut` en zonas.py: una confirmación con número,
+    no una advertencia genérica."""
+
+    detecciones: int
 
 
 # --- Alertas / recomendaciones ------------------------------------------------
@@ -251,6 +294,11 @@ class AlertaOcupacionLuzCreate(BaseModel):
     # nada — una alerta solo se reporta habiendo visto al menos una encendida,
     # asi que es el piso verdadero si un cliente viejo no manda el campo.
     luminarias_encendidas: int = Field(default=1, ge=1, le=999)
+    # Detección cuyo fotograma disparó la alerta: la alerta reutiliza esa
+    # imagen (`Recomendacion.id_deteccion_origen`) en vez de que el frontend
+    # suba una copia aparte. Opcional por compatibilidad con quien ya llamaba
+    # a este endpoint sin mandarlo.
+    id_deteccion: int | None = None
 
     @model_validator(mode="after")
     def _una_referencia(self) -> "AlertaOcupacionLuzCreate":
@@ -265,6 +313,26 @@ class AlertaOcupacionLuzOut(BaseModel):
     mensaje: str
     prioridad: str
     fecha_hora: dt.datetime
+
+
+class AlertaHistorialItem(BaseModel):
+    """Una fila de la galería de Historial · Alertas, enriquecida con la sala,
+    la luminaria y la imagen de la detección que la disparó."""
+
+    id_recomendacion: uuid.UUID
+    id_evento: int | None = None
+    fecha_hora: dt.datetime
+    mensaje: str
+    prioridad: str
+    aplicada: bool
+    zona: str | None = None
+    id_zona: uuid.UUID | None = None
+    luminaria: str | None = None
+    segundos_sin_ocupacion: int | None = None
+    porcentaje_artificial: float | None = None
+    luminarias_visibles: int | None = None
+    luminarias_encendidas: int | None = None
+    imagen_url: str | None = None
 
 
 class RecomendacionOut(BaseModel):

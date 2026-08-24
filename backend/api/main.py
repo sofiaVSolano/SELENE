@@ -71,6 +71,30 @@ def _startup() -> None:
     # en paralelo mientras el usuario entra, en vez de bloquear el arranque.
     threading.Thread(target=_precargar_modelos, name="warmup", daemon=True).start()
 
+    # Limpieza de imagenes de mas de 60 dias (ver `imagenes.py`): corre una
+    # vez al arrancar y luego cada 24h, en su propio hilo daemon -- mismo
+    # patron que la precarga de modelos de arriba. No borra la fila de la
+    # deteccion ni sus cifras, solo el archivo pesado y su referencia.
+    threading.Thread(target=_limpieza_periodica, name="limpieza-imagenes", daemon=True).start()
+
+
+_UN_DIA_SEGUNDOS = 24 * 60 * 60
+
+
+def _limpieza_periodica() -> None:
+    from .database import SessionLocal
+    from .imagenes import limpiar_imagenes_antiguas
+
+    while True:
+        db = SessionLocal()
+        try:
+            limpiar_imagenes_antiguas(db, dias=60)
+        except Exception:  # noqa: BLE001 - limpieza de fondo; no debe tumbar el hilo ni el servidor.
+            logger.warning("Fallo la limpieza periodica de imagenes de deteccion.", exc_info=True)
+        finally:
+            db.close()
+        threading.Event().wait(_UN_DIA_SEGUNDOS)
+
 
 def _precargar_modelos() -> None:
     from . import detection_service

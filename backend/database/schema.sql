@@ -117,11 +117,28 @@ CREATE TABLE IF NOT EXISTS luminarias (
 CREATE TABLE IF NOT EXISTS detecciones_ocupacion (
     id_deteccion          INTEGER PRIMARY KEY AUTOINCREMENT,
     id_luminaria           TEXT NOT NULL REFERENCES luminarias(id_luminaria) ON DELETE CASCADE,
+    -- Sala activa al momento de la captura, sellada aqui (ver el mismo
+    -- comentario en api/models.py::DeteccionOcupacion). Sin ON DELETE propio:
+    -- la fila entera ya se va en cascada cuando se borra la luminaria.
+    id_zona                TEXT REFERENCES zonas(id_zona),
     fecha_hora             TEXT NOT NULL,
     personas_detectadas    INTEGER NOT NULL DEFAULT 0 CHECK (personas_detectadas >= 0),
     confianza              REAL CHECK (confianza IS NULL OR (confianza BETWEEN 0 AND 1)),
     imagen_referencia      TEXT,
     estado_ocupacion       TEXT NOT NULL CHECK (estado_ocupacion IN ('ocupado', 'vacio')),
+    -- Snapshot del analisis completo del fotograma (ver el comentario largo
+    -- en api/models.py::DeteccionOcupacion): antes solo vivia en la
+    -- respuesta HTTP y en el localStorage del navegador.
+    num_ventanas               INTEGER NOT NULL DEFAULT 0,
+    num_luminarias              INTEGER NOT NULL DEFAULT 0,
+    num_luminarias_encendidas   INTEGER NOT NULL DEFAULT 0,
+    porcentaje_natural           REAL NOT NULL DEFAULT 0,
+    porcentaje_artificial        REAL NOT NULL DEFAULT 0,
+    natural_score                 REAL NOT NULL DEFAULT 0,
+    artificial_score              REAL NOT NULL DEFAULT 0,
+    consumo_estimado_kwh          REAL,
+    ahorro_estimado_kwh           REAL,
+    recomendacion                 TEXT,
     CONSTRAINT chk_deteccion_consistencia CHECK (
         (estado_ocupacion = 'vacio'    AND personas_detectadas = 0) OR
         (estado_ocupacion = 'ocupado'  AND personas_detectadas >= 1)
@@ -183,6 +200,13 @@ CREATE TABLE IF NOT EXISTS recomendaciones (
     id_recomendacion    TEXT PRIMARY KEY,
     id_luminaria         TEXT NOT NULL REFERENCES luminarias(id_luminaria) ON DELETE CASCADE,
     id_patron            TEXT REFERENCES patrones_uso(id_patron) ON DELETE SET NULL,
+    -- Sala sellada al momento de la alerta (ver el mismo comentario en
+    -- api/models.py::Recomendacion).
+    id_zona               TEXT REFERENCES zonas(id_zona),
+    -- Deteccion cuyo fotograma disparo esta alerta -- referencia "suave", sin
+    -- FK, igual que eventos.id_deteccion_origen (ver comentario ahi).
+    id_deteccion_origen  INTEGER,
+    segundos_sin_ocupacion INTEGER,
     fecha_hora            TEXT NOT NULL,
     recomendacion        TEXT NOT NULL,
     prioridad             TEXT NOT NULL DEFAULT 'media'

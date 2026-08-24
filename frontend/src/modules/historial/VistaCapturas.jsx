@@ -1,18 +1,13 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Boton from "../../components/ui/Boton.jsx";
 import { BombilloComputador } from "../../components/ui/Cargando.jsx";
 import Contador from "../../components/ui/Contador.jsx";
 import Lightbox from "../../components/ui/Lightbox.jsx";
-import { filtrarPorSala, TODAS } from "../../lib/salaFiltro.js";
+import { api, ApiError } from "../../lib/api.js";
+import { TODAS } from "../../lib/salaFiltro.js";
+import { useImagenSegura } from "../../lib/useImagenSegura.js";
 import { useSpecular } from "../../lib/useSpecular.js";
-import {
-  borrarEjecucion,
-  listarEjecuciones,
-  MAX_EJECUCIONES,
-  suscribirEjecuciones,
-  vaciarEjecuciones,
-} from "../../lib/almacen.js";
 import { CURVA, escena, RESORTE, trans } from "../../lib/movimiento.js";
 import { useMonitoreoCompartido } from "../monitoreo/MonitoreoContext.jsx";
 import { sonido } from "../../lib/sound.js";
@@ -30,12 +25,20 @@ import { sonido } from "../../lib/sound.js";
  * luz, consumo— aparece al acercarse. Es lo que evita que veinte tarjetas
  * se conviertan en veinte tablas pequeñas.
  *
- * Borrar una foto de aquí también la borra de la línea de tiempo en vivo
- * del Centro de Monitoreo (`useMonitoreoCompartido().eliminarCaptura`):
- * son dos almacenes distintos (éste vive en localStorage, el otro sólo en
- * memoria de sesión) pero comparten el mismo id por captura, así que
- * quedarían desincronizados —la foto "borrada" seguiría apareciendo en el
- * comparador— si no se limpiaran los dos a la vez.
+ * De dónde salen los datos: del servidor (`GET /api/deteccion/historial`),
+ * no de `localStorage`. Antes vivían ahí (ver `selene-migro-a-sqlite` y el
+ * comentario largo en `backend/api/models.py::DeteccionOcupacion`) y se
+ * perdían al borrar datos del navegador o al llegar al tope de 60 capturas;
+ * ahora son del servidor, sobreviven a cualquier dispositivo y el único
+ * límite es el paginado (`limite`/`offset`).
+ *
+ * Se refresca sola: al montar, al cambiar de sala, en cuanto esta misma
+ * sesión captura algo nuevo (vía `useMonitoreoCompartido`) y con un sondeo
+ * de respaldo cada 25 s mientras la pestaña está visible, por si la captura
+ * vino de otra pestaña o dispositivo. Borrar una foto de aquí también la
+ * borra de la línea de tiempo en vivo del Centro de Monitoreo
+ * (`useMonitoreoCompartido().eliminarCaptura`), que sigue siendo memoria de
+ * sesión aparte (ver `historial-por-sala-selene`).
  */
 
 const FILTROS = [
@@ -64,9 +67,32 @@ export function esDerroche(e) {
   return e.luminariasEncendidas > 0;
 }
 
+/** La fila cruda de la API, con los mismos nombres cortos que ya usaba el
+ * resto de este archivo cuando la fuente era `lib/almacen.js` — así el
+ * cambio de origen de datos no obliga a reescribir `esDerroche` ni el JSX. */
+function normalizar(r) {
+  return {
+    id: r.id_deteccion,
+    ts: r.fecha_hora,
+    idZona: r.id_zona,
+    zona: r.zona,
+    personas: r.personas_detectadas,
+    ventanas: r.num_ventanas,
+    luminarias: r.num_luminarias,
+    luminariasEncendidas: r.num_luminarias_encendidas,
+    natural: r.porcentaje_natural,
+    artificial: r.porcentaje_artificial,
+    consumo: r.consumo_estimado_kwh,
+    ahorro: r.ahorro_estimado_kwh,
+    recomendacion: r.recomendacion,
+    imagenUrl: r.imagen_url,
+  };
+}
+
 function Tarjeta({ e, indice, onBorrar, onAmpliar }) {
   const specular = useSpecular();
   const [abierta, setAbierta] = useState(false);
+  const { url: miniatura } = useImagenSegura(e.imagenUrl);
   const fecha = new Date(e.ts);
 
   return (
@@ -89,18 +115,20 @@ function Tarjeta({ e, indice, onBorrar, onAmpliar }) {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => onAmpliar(e)}
-        onKeyDown={(ev) => ev.key === "Enter" && onAmpliar(e)}
+        onClick={() => miniatura && onAmpliar(e, miniatura)}
+        onKeyDown={(ev) => ev.key === "Enter" && miniatura && onAmpliar(e, miniatura)}
         aria-label="Ver la captura en grande"
         className="relative aspect-[16/10] cursor-zoom-in overflow-hidden bg-paper-3 outline-none"
       >
-        <motion.img
-          src={e.miniatura}
-          alt=""
-          className="h-full w-full object-cover"
-          animate={{ scale: abierta ? 1.06 : 1 }}
-          transition={{ duration: 0.5, ease: CURVA.luz }}
-        />
+        {miniatura && (
+          <motion.img
+            src={miniatura}
+            alt=""
+            className="h-full w-full object-cover"
+            animate={{ scale: abierta ? 1.06 : 1 }}
+            transition={{ duration: 0.5, ease: CURVA.luz }}
+          />
+        )}
 
         {/* Velo cálido que sube al acercarse: la tarjeta se ilumina */}
         <motion.span
@@ -242,30 +270,77 @@ function Tarjeta({ e, indice, onBorrar, onAmpliar }) {
 
 export default function VistaCapturas({ sala = TODAS }) {
   const m = useMonitoreoCompartido();
-  const [crudas, setCrudas] = useState(() => listarEjecuciones());
+  const [ejecuciones, setEjecuciones] = useState([]);
   const [filtro, setFiltro] = useState("todas");
   const [ampliada, setAmpliada] = useState(null);
   // Borrar todo el historial de un golpe merece un segundo clic de
   // confirmación; borrar una sola captura no (ese ya tiene su propio
   // deshacer implícito: siempre puedes volver a analizar la sala).
   const [confirmarVaciar, setConfirmarVaciar] = useState(false);
-  // El bombillo se posa sobre el computador un instante al entrar a esta
-  // pestaña, aunque los datos ya estén listos en localStorage: es la
-  // entrada, no una espera real.
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => suscribirEjecuciones(setCrudas), []);
+  const idZona = sala !== TODAS ? sala : undefined;
 
-  /* Se filtra AQUÍ, una vez, y de aquí para abajo `ejecuciones` ya es "lo de
-     esta sala". Así los contadores, los filtros y el estado vacío hablan
-     todos del mismo conjunto: si se filtrara solo la rejilla, la cabecera
-     seguiría contando capturas de otras salas. */
-  const ejecuciones = useMemo(() => filtrarPorSala(crudas, sala), [crudas, sala]);
+  /* `silencioso` es lo que distingue la carga inicial (pantalla de bombillo
+     completa) de un refresco de fondo: uno no debe hacer parpadear la
+     galería que ya se está viendo, y un fallo pasajero de red en uno
+     silencioso tampoco debe tapar la lista con un banner de error. */
+  const cargar = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!silencioso) {
+        setCargando(true);
+        setError(null);
+      }
+      try {
+        const filas = await api.historialCapturas(idZona, { limite: 200 });
+        setEjecuciones(filas.map(normalizar));
+        if (!silencioso) setError(null);
+      } catch (e) {
+        if (!silencioso) setError(e instanceof ApiError ? e.message : "No se pudo cargar el historial.");
+      } finally {
+        if (!silencioso) setCargando(false);
+      }
+    },
+    [idZona]
+  );
 
   useEffect(() => {
-    const id = window.setTimeout(() => setCargando(false), 620);
-    return () => window.clearTimeout(id);
-  }, []);
+    cargar();
+  }, [cargar]);
+
+  /* Refresco automático, en dos capas:
+     1) Evento: esta misma sesión ya sabe cuándo cae una captura nueva —
+        `useMonitoreoCompartido().capturas` es el ring buffer en vivo del
+        Centro de Monitoreo (ver `historial-por-sala-selene`) — así que en
+        cuanto llega una se vuelve a pedir el historial, sin esperar al
+        sondeo. Sin lista de dependencias con `cargar`: cuando este efecto
+        SÍ corre (cambió `ultimaCapturaId`), usa el cierre más reciente de
+        todos modos, así que da igual que `cargar` no esté declarado ahí.
+     2) Sondeo: cada 25 s, y solo con la pestaña visible, por si la captura
+        vino de OTRA pestaña o dispositivo monitoreando la misma sala — eso
+        no pasa por el ring buffer de esta sesión. */
+  const ultimaCapturaId = m.capturas.length ? m.capturas[m.capturas.length - 1].id : null;
+  useEffect(() => {
+    if (ultimaCapturaId === null) return;
+    cargar({ silencioso: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ultimaCapturaId]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") cargar({ silencioso: true });
+    }, 25000);
+    return () => window.clearInterval(id);
+  }, [cargar]);
+
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === "visible") cargar({ silencioso: true });
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, [cargar]);
 
   useEffect(() => {
     if (!confirmarVaciar) return undefined;
@@ -289,6 +364,26 @@ export default function VistaCapturas({ sala = TODAS }) {
     }),
     [ejecuciones]
   );
+
+  const borrar = async (id) => {
+    try {
+      await api.eliminarCaptura(id);
+      setEjecuciones((prev) => prev.filter((e) => e.id !== id));
+      m.eliminarCaptura(id); // misma foto, misma id, también en la línea de tiempo
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar la captura.");
+    }
+  };
+
+  const vaciarTodas = async () => {
+    try {
+      await api.vaciarCapturas(idZona);
+      setEjecuciones([]);
+      m.limpiar(); // también desaparecen de la línea de tiempo en vivo
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudieron borrar las capturas.");
+    }
+  };
 
   if (cargando) {
     return (
@@ -329,25 +424,9 @@ export default function VistaCapturas({ sala = TODAS }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-6">
-          {/* El tope no es invisible: se ve cuánto queda antes de que la
-              captura más vieja empiece a soltarse para dejar sitio. */}
-          <div title="Al llegar al tope, la captura más antigua se descarta para dejar sitio a la nueva.">
+          <div>
             <p className="annot text-[9px]">capturas guardadas</p>
-            <p className="flex items-baseline gap-1">
-              <Contador valor={totales.ejecuciones} className="text-[17px] leading-none" />
-              <span className="mono text-[11px] text-ink-3">/ {MAX_EJECUCIONES}</span>
-            </p>
-            <div className="mt-1 h-[3px] w-16 overflow-hidden rounded-full bg-linen">
-              <motion.div
-                className="h-full rounded-full"
-                style={{
-                  background:
-                    totales.ejecuciones >= MAX_EJECUCIONES ? "var(--clay)" : "var(--amber)",
-                }}
-                animate={{ width: `${Math.min(100, (totales.ejecuciones / MAX_EJECUCIONES) * 100)}%` }}
-                transition={RESORTE.firme}
-              />
-            </div>
+            <Contador valor={totales.ejecuciones} className="text-[17px] leading-none" />
           </div>
 
           {[
@@ -376,8 +455,7 @@ export default function VistaCapturas({ sala = TODAS }) {
                   sonido.roce();
                   return;
                 }
-                vaciarEjecuciones();
-                m.limpiar(); // también desaparecen de la línea de tiempo en vivo
+                vaciarTodas();
                 setConfirmarVaciar(false);
                 sonido.papel();
               }}
@@ -387,6 +465,12 @@ export default function VistaCapturas({ sala = TODAS }) {
           )}
         </div>
       </div>
+
+      {error && (
+        <p className="mb-4 border-l-2 border-clay pl-3 font-mono text-[11px] leading-relaxed text-clay">
+          {error}
+        </p>
+      )}
 
       {visibles.length === 0 ? (
         <motion.div
@@ -415,11 +499,8 @@ export default function VistaCapturas({ sala = TODAS }) {
                 key={e.id}
                 e={e}
                 indice={i}
-                onBorrar={(id) => {
-                  borrarEjecucion(id); // avisa a los suscriptores (setCrudas) por su cuenta
-                  m.eliminarCaptura(id); // misma foto, misma id, también en la línea de tiempo
-                }}
-                onAmpliar={setAmpliada}
+                onBorrar={borrar}
+                onAmpliar={(captura, url) => setAmpliada({ ...captura, url })}
               />
             ))}
           </AnimatePresence>
@@ -429,7 +510,7 @@ export default function VistaCapturas({ sala = TODAS }) {
       <AnimatePresence>
         {ampliada && (
           <Lightbox
-            imagen={ampliada.miniatura}
+            imagen={ampliada.url}
             titulo={`${new Date(ampliada.ts).toLocaleDateString("es", { day: "2-digit", month: "short" })} · ${new Date(ampliada.ts).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`}
             detalle={`${ampliada.personas} personas · ${ampliada.ventanas} ventanas · ${ampliada.luminarias} luminarias`}
             onCerrar={() => setAmpliada(null)}

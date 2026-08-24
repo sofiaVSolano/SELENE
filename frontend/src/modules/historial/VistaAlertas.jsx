@@ -1,17 +1,14 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Boton from "../../components/ui/Boton.jsx";
 import Contador from "../../components/ui/Contador.jsx";
 import Lightbox from "../../components/ui/Lightbox.jsx";
-import {
-  borrarAlerta,
-  listarAlertas,
-  suscribirAlertas,
-  vaciarAlertas,
-} from "../../lib/alertasAlmacen.js";
-import { filtrarPorSala, TODAS } from "../../lib/salaFiltro.js";
+import { api, ApiError } from "../../lib/api.js";
+import { TODAS } from "../../lib/salaFiltro.js";
+import { useImagenSegura } from "../../lib/useImagenSegura.js";
 import { useSpecular } from "../../lib/useSpecular.js";
 import { CURVA, escena, RESORTE, trans } from "../../lib/movimiento.js";
+import { suscribirOportunidad } from "../../oportunidad/bus.js";
 import { sonido } from "../../lib/sound.js";
 
 /**
@@ -22,6 +19,17 @@ import { sonido } from "../../lib/sound.js";
  * `oportunidad/AvisoDeOportunidad.jsx`) y queda un registro aquí: día,
  * hora, la imagen exacta que disparó la alerta y la sala. La escena es el
  * instante; esta galería es la memoria.
+ *
+ * Igual que `VistaCapturas`, los datos salen del servidor (`GET
+ * /api/alertas/historial`), no de `localStorage`: zona, luminaria e imagen
+ * ya vienen resueltas por el backend, que ancla cada alerta a la detección
+ * que la disparó (`Recomendacion.id_deteccion_origen`).
+ *
+ * Se refresca sola: al montar, al cambiar de sala, en cuanto esta misma
+ * sesión dispara una alerta (suscrita a `oportunidad/bus.js`, el mismo aviso
+ * que monta la escena de Lum) y con un sondeo de respaldo cada 25 s mientras
+ * la pestaña está visible, por si la alerta vino de otra pestaña o
+ * dispositivo.
  *
  * Misma gramática visual que las capturas —tarjeta que cobra vida al
  * acercarse— porque las tres pestañas del historial tienen que sentirse
@@ -36,9 +44,30 @@ const FILTROS = [
 
 const COLOR_PRIORIDAD = { alta: "var(--clay)", media: "var(--amber)" };
 
+/** Misma idea que `normalizar` en `VistaCapturas`: mapea la fila de la API a
+ * los nombres cortos que ya usaba este archivo cuando la fuente era
+ * `lib/alertasAlmacen.js`. */
+function normalizar(r) {
+  return {
+    id: r.id_recomendacion,
+    ts: r.fecha_hora,
+    idZona: r.id_zona,
+    zona: r.zona,
+    luminaria: r.luminaria,
+    mensaje: r.mensaje,
+    prioridad: r.prioridad,
+    segundosSinOcupacion: r.segundos_sin_ocupacion,
+    porcentajeArtificial: r.porcentaje_artificial,
+    luminariasVisibles: r.luminarias_visibles,
+    luminariasEncendidas: r.luminarias_encendidas,
+    imagenUrl: r.imagen_url,
+  };
+}
+
 function Tarjeta({ a, indice, onBorrar, onAmpliar }) {
   const specular = useSpecular();
   const [abierta, setAbierta] = useState(false);
+  const { url: imagen } = useImagenSegura(a.imagenUrl);
   const fecha = new Date(a.ts);
   const color = COLOR_PRIORIDAD[a.prioridad] || "var(--amber)";
 
@@ -62,18 +91,20 @@ function Tarjeta({ a, indice, onBorrar, onAmpliar }) {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => onAmpliar(a)}
-        onKeyDown={(e) => e.key === "Enter" && onAmpliar(a)}
+        onClick={() => imagen && onAmpliar(a, imagen)}
+        onKeyDown={(e) => e.key === "Enter" && imagen && onAmpliar(a, imagen)}
         aria-label="Ver la imagen de la alerta en grande"
         className="relative aspect-[16/10] cursor-zoom-in overflow-hidden bg-paper-3 outline-none"
       >
-        <motion.img
-          src={a.imagen}
-          alt=""
-          className="h-full w-full object-cover"
-          animate={{ scale: abierta ? 1.06 : 1 }}
-          transition={{ duration: 0.5, ease: CURVA.luz }}
-        />
+        {imagen && (
+          <motion.img
+            src={imagen}
+            alt=""
+            className="h-full w-full object-cover"
+            animate={{ scale: abierta ? 1.06 : 1 }}
+            transition={{ duration: 0.5, ease: CURVA.luz }}
+          />
+        )}
 
         {/* Velo de alerta: rojo/ámbar según prioridad, no el ámbar genérico
             de las capturas — aquí el color SÍ es el mensaje. */}
@@ -166,16 +197,63 @@ function Tarjeta({ a, indice, onBorrar, onAmpliar }) {
 }
 
 export default function VistaAlertas({ sala = TODAS }) {
-  const [crudas, setCrudas] = useState(() => listarAlertas());
+  const [alertas, setAlertas] = useState([]);
   const [filtro, setFiltro] = useState("todas");
   const [ampliada, setAmpliada] = useState(null);
   const [confirmarVaciar, setConfirmarVaciar] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => suscribirAlertas(setCrudas), []);
+  const idZona = sala !== TODAS ? sala : undefined;
 
-  /* Igual que en las capturas: de aquí para abajo `alertas` ya es "las de
-     esta sala", contadores incluidos (ver `VistaCapturas`). */
-  const alertas = useMemo(() => filtrarPorSala(crudas, sala), [crudas, sala]);
+  /* `silencioso`: mismo motivo que en `VistaCapturas` — un refresco de
+     fondo no debe hacer parpadear la galería ni tapar lo que ya se ve con
+     un banner de error por un fallo pasajero de red. */
+  const cargar = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!silencioso) {
+        setCargando(true);
+        setError(null);
+      }
+      try {
+        const filas = await api.historialAlertasSala(idZona, { limite: 100 });
+        setAlertas(filas.map(normalizar));
+        if (!silencioso) setError(null);
+      } catch (e) {
+        if (!silencioso) setError(e instanceof ApiError ? e.message : "No se pudo cargar el historial de alertas.");
+      } finally {
+        if (!silencioso) setCargando(false);
+      }
+    },
+    [idZona]
+  );
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  /* Refresco automático, en dos capas — igual que `VistaCapturas`:
+     1) Evento: en cuanto ESTA sesión dispara una alerta (mismo aviso que
+        monta la escena de Lum, ver `oportunidad/bus.js`), se vuelve a pedir
+        el historial sin esperar al sondeo.
+     2) Sondeo: cada 25 s, y solo con la pestaña visible, por si la alerta
+        vino de otra pestaña o dispositivo monitoreando la misma sala. */
+  useEffect(() => suscribirOportunidad(() => cargar({ silencioso: true })), [cargar]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") cargar({ silencioso: true });
+    }, 25000);
+    return () => window.clearInterval(id);
+  }, [cargar]);
+
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === "visible") cargar({ silencioso: true });
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, [cargar]);
 
   useEffect(() => {
     if (!confirmarVaciar) return undefined;
@@ -197,6 +275,32 @@ export default function VistaAlertas({ sala = TODAS }) {
     }),
     [alertas]
   );
+
+  const borrar = async (id) => {
+    try {
+      await api.eliminarAlerta(id);
+      setAlertas((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar la alerta.");
+    }
+  };
+
+  const vaciarTodas = async () => {
+    try {
+      await api.vaciarAlertas(idZona);
+      setAlertas([]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudieron borrar las alertas.");
+    }
+  };
+
+  if (cargando) {
+    return (
+      <motion.div {...escena} className="flex min-h-[60vh] items-center justify-center">
+        <p className="annot">cargando alertas…</p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div {...escena}>
@@ -246,7 +350,7 @@ export default function VistaAlertas({ sala = TODAS }) {
                   sonido.roce();
                   return;
                 }
-                vaciarAlertas();
+                vaciarTodas();
                 setConfirmarVaciar(false);
                 sonido.papel();
               }}
@@ -256,6 +360,12 @@ export default function VistaAlertas({ sala = TODAS }) {
           )}
         </div>
       </div>
+
+      {error && (
+        <p className="mb-4 border-l-2 border-clay pl-3 font-mono text-[11px] leading-relaxed text-clay">
+          {error}
+        </p>
+      )}
 
       {visibles.length === 0 ? (
         <motion.div
@@ -284,8 +394,8 @@ export default function VistaAlertas({ sala = TODAS }) {
                 key={a.id}
                 a={a}
                 indice={i}
-                onBorrar={(id) => setAlertas(borrarAlerta(id))}
-                onAmpliar={setAmpliada}
+                onBorrar={borrar}
+                onAmpliar={(alerta, url) => setAmpliada({ ...alerta, url })}
               />
             ))}
           </AnimatePresence>
@@ -295,7 +405,7 @@ export default function VistaAlertas({ sala = TODAS }) {
       <AnimatePresence>
         {ampliada && (
           <Lightbox
-            imagen={ampliada.imagen}
+            imagen={ampliada.url}
             titulo={`${ampliada.zona || "sala"}${ampliada.luminaria ? ` · ${ampliada.luminaria}` : ""}`}
             detalle={`${new Date(ampliada.ts).toLocaleDateString("es", { day: "2-digit", month: "short" })} · ${new Date(ampliada.ts).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })} · prioridad ${ampliada.prioridad}`}
             nota={ampliada.mensaje}

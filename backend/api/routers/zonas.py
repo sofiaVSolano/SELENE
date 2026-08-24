@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import luminarias_auto, models, schemas
+from .. import imagenes, luminarias_auto, models, schemas
 from ..database import get_db
 from ..deps import get_current_user
 
@@ -141,12 +141,31 @@ def eliminar_zona(
     zona = _obtener(db, id_zona)
     nombre = zona.nombre
 
+    # Las imágenes en disco no están sujetas al `ON DELETE CASCADE` de SQLite
+    # (ese solo borra filas): sin este paso, cada archivo quedaría huérfano
+    # en `data/imagenes/` para siempre. Se recogen los nombres ANTES del
+    # DELETE en cascada, mientras las filas todavía existen.
+    nombres_imagenes = list(
+        db.scalars(
+            select(models.DeteccionOcupacion.imagen_referencia)
+            .join(models.Luminaria, models.Luminaria.id_luminaria == models.DeteccionOcupacion.id_luminaria)
+            .where(models.Luminaria.id_zona == id_zona, models.DeteccionOcupacion.imagen_referencia.is_not(None))
+        )
+    )
+
     borradas = db.query(models.Luminaria).filter(models.Luminaria.id_zona == id_zona).delete(
         synchronize_session=False
     )
     db.delete(zona)
     db.commit()
-    logger.info("Sala «%s» eliminada con %d luminaria(s) y su historial.", nombre, borradas or 0)
+
+    for nombre_archivo in nombres_imagenes:
+        imagenes.eliminar_imagen(nombre_archivo)
+
+    logger.info(
+        "Sala «%s» eliminada con %d luminaria(s), su historial y %d imagen(es).",
+        nombre, borradas or 0, len(nombres_imagenes),
+    )
 
 
 @router.get("/{id_zona}/impacto-borrado", response_model=schemas.ImpactoBorradoOut)

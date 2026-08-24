@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emitirPulso } from "../../light/pulso.js";
-import { guardarAlerta } from "../../lib/alertasAlmacen.js";
-import { guardarEjecucion } from "../../lib/almacen.js";
 import { api } from "../../lib/api.js";
 import { sonido } from "../../lib/sound.js";
 import { emitirOportunidad } from "../../oportunidad/bus.js";
 
 const ANCHO_INFERENCIA = 960; // se reescala antes de enviar: los modelos son pesados
 // 480 y no 168: la misma miniatura se usa tanto para la tarjeta de la
-// galería como para el lightbox que la agranda al hacer clic. A 168 px se
-// veía nítida en la tarjeta pero pixelada al ampliarla. El costo es unos
-// 15-20 KB por captura en vez de 4 KB; con el tope de `MAX_EJECUCIONES` en
-// `lib/almacen.js` sigue cabiendo de sobra en la cuota de localStorage.
+// galería en vivo (línea de tiempo del Centro de Monitoreo, que vive solo en
+// memoria de esta sesión) como para el lightbox que la agranda al hacer
+// clic. A 168 px se veía nítida en la tarjeta pero pixelada al ampliarla.
+// El historial DURABLE (pestaña Historial) ya no usa esta miniatura: pide su
+// propia imagen guardada en el servidor (ver `lib/useImagenSegura.js`).
 const ANCHO_MINIATURA = 480;
 const MAX_CAPTURAS = 40; // techo de memoria: cada captura guarda dos dataURL
 
@@ -183,33 +182,21 @@ export function useMonitoreo() {
           segundos_sin_ocupacion: Math.min(86400, Math.round(segundosVacia)),
           porcentaje_artificial: captura.analisis.porcentaje_artificial ?? 0,
           luminarias_encendidas: Math.max(1, captura.analisis.num_luminarias_encendidas ?? 1),
+          // El backend ancla la alerta a esta detección: así reutiliza SU
+          // imagen ya guardada (`Recomendacion.id_deteccion_origen`) en vez
+          // de que el navegador suba una copia aparte. Ver `routers/alertas.py`.
+          id_deteccion: captura.analisis.id_deteccion ?? null,
         });
 
         const sala = salas.find((s) => s.id_zona === idZona);
         const a = captura.analisis;
         const segundos = Math.round(segundosVacia);
 
-        guardarAlerta({
-          idEvento: String(r.id_evento),
-          ts: r.fecha_hora,
-          imagen: captura.miniatura,
-          // El id, además del nombre: el historial filtra por sala y un
-          // nombre puede cambiar (la pantalla de salas deja renombrarlas).
-          idZona,
-          zona: sala?.nombre || "sin sala",
-          luminaria: "",
-          mensaje: r.mensaje,
-          prioridad: r.prioridad,
-          segundosSinOcupacion: segundos,
-          porcentajeArtificial: a.porcentaje_artificial ?? 0,
-          // Se guardan para que el pie de figura del reporte pueda decir
-          // cuántas luminarias había encendidas (ver `lib/figuras.js`). Son
-          // dos números distintos: cuántas ve el modelo y cuántas de esas
-          // están emitiendo — en un techo con tres lámparas y una prendida,
-          // decir "3 encendidas" sería falso.
-          luminariasVisibles: a.num_luminarias ?? 0,
-          luminariasEncendidas: a.num_luminarias_encendidas ?? 0,
-        });
+        // Ya no se guarda en `localStorage` (ese módulo, `alertasAlmacen.js`,
+        // se retiró): el registro durable de esta alerta lo hizo el backend
+        // en `POST /api/alertas/ocupacion-luz`, y `VistaAlertas` lo lee de
+        // `GET /api/alertas/historial`. Aquí solo queda emitir la escena en
+        // vivo (`AvisoDeOportunidad`), que es memoria de sesión.
 
         /* Las cifras de la tarjeta salen del módulo energético, las mismas
            que muestra el panel lateral — dos números distintos para el mismo
@@ -318,7 +305,13 @@ export function useMonitoreo() {
          de todo el historial ya tomado. */
       const salaActiva = salas.find((s) => s.id_zona === idZona);
       const captura = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        // El id de la detección en el servidor, cuando lo hay (ancló a una
+        // sala/luminaria): es el mismo que usa el historial durable, así
+        // que borrar una foto ahí (`VistaCapturas`) la borra también de
+        // aquí sin depender de que coincidan dos ids generados aparte. Sin
+        // sala elegida el backend no persiste nada y no hay id que reusar;
+        // se genera uno solo para esta sesión.
+        id: analisis.id_deteccion ?? `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ts: new Date(analisis.fecha_hora || Date.now()),
         imagen: marco.canvas.toDataURL("image/jpeg", 0.78),
         miniatura: miniaturaDe(marco.canvas),
@@ -337,7 +330,9 @@ export function useMonitoreo() {
          viene literalmente el dato. */
       sonido.inferencia(analisis.confianza_max_persona || analisis.natural_score || 0.7);
       emitirPulso({ fuerza: 0.3, tipo: "dato", origen: { x: 0.36, y: 0.44 } });
-      guardarEjecucion(captura);
+      // Ya no se escribe en `localStorage` (ese módulo, `almacen.js`, se
+      // retiró): `POST /api/deteccion/frame` ya persistió esta captura
+      // completa (imagen incluida) del lado del servidor.
       evaluarDerroche(captura);
       return captura;
     } catch (e) {
@@ -377,10 +372,10 @@ export function useMonitoreo() {
 
   /**
    * Borra una captura de la línea de tiempo en vivo por id. Existe para que
-   * borrar una foto en el historial (`lib/almacen.js`, un almacén aparte en
-   * localStorage) también la quite de aquí — comparten el mismo id porque
-   * `guardarEjecucion` se llama con la misma captura que termina en este
-   * array, así que un solo id basta para mantener ambos sincronizados. Si la
+   * borrar una foto en el historial durable (`VistaCapturas`, que ahora vive
+   * en el servidor) también la quite de aquí — comparten el mismo id porque
+   * `captura.id` se toma directamente de `analisis.id_deteccion` cuando lo
+   * hay, así que un solo id basta para mantener ambos sincronizados. Si la
    * captura activa era esa, se vuelve a seguir la más reciente.
    */
   const eliminarCaptura = useCallback((id) => {
