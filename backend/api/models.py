@@ -377,3 +377,31 @@ class Reporte(Base):
     periodo: Mapped[str] = mapped_column(Text, nullable=False)
     ruta_archivo: Mapped[str] = mapped_column(Text, nullable=False)
     resumen: Mapped[str | None] = mapped_column(Text)
+
+
+class ConfiguracionReporteEmail(Base):
+    """Preferencia de UN usuario sobre el resumen diario de actividad que le
+    llega por correo (ver `api/email_reports.py`): a que hora, a que correo, y
+    si esta activo. PK = id_usuario (no autoincremental): es una fila que se
+    UPSERTea, nunca un historial de configuraciones pasadas."""
+
+    __tablename__ = "configuracion_reportes_email"
+
+    id_usuario: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("usuarios.id_usuario", ondelete="CASCADE"), primary_key=True,
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
+    # Hora LOCAL (HH:MM, en `settings.app_timezone`), no UTC: es la hora que
+    # la persona escribe en el formulario, tal cual.
+    hora_envio: Mapped[str] = mapped_column(Text, nullable=False, server_default="08:00")
+    correo_destino: Mapped[str] = mapped_column(Text, nullable=False)
+    # YYYY-MM-DD de la ultima vez que se envio, para que el hilo de fondo que
+    # revisa cada minuto (ver main.py) no mande el mismo correo dos veces el
+    # mismo dia.
+    ultima_fecha_enviada: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc)
+    updated_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=_ahora_utc, onupdate=_ahora_utc)
+
+    __table_args__ = (
+        CheckConstraint("hora_envio GLOB '[0-2][0-9]:[0-5][0-9]'", name="chk_config_reportes_hora"),
+    )

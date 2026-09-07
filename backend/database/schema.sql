@@ -301,7 +301,36 @@ CREATE TABLE IF NOT EXISTS reportes (
 );
 
 -- =====================================================================
--- 12. INDICES
+-- 12. CONFIGURACION_REPORTES_EMAIL
+-- ---------------------------------------------------------------------
+-- Una fila por usuario (PK = id_usuario, no autoincremental): "editar la
+-- configuracion" siempre es un UPSERT sobre la misma fila, nunca un
+-- historial de configuraciones pasadas. `correo_destino` es un campo propio
+-- y no `usuarios.correo` porque el usuario puede querer que el resumen le
+-- llegue a un correo distinto del que usa para entrar a SELENE.
+-- `ultima_fecha_enviada` (YYYY-MM-DD, no timestamp) es lo que hace el envio
+-- diario idempotente: el hilo de fondo (ver backend/api/main.py) revisa cada
+-- minuto y compara contra la fecha de HOY en `settings.app_timezone`, asi
+-- que reiniciar el servidor o que el reloj pase dos veces por la misma hora
+-- (o que la comprobacion tarde mas de un minuto) nunca duplica el correo.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS configuracion_reportes_email (
+    id_usuario            TEXT PRIMARY KEY REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    activo                INTEGER NOT NULL DEFAULT 0,
+    -- Hora local (HH:MM, 24h) en `settings.app_timezone` -- NO en UTC: es la
+    -- hora que la persona escribe en el formulario, tal cual.
+    hora_envio            TEXT NOT NULL DEFAULT '08:00'
+                          CHECK (hora_envio GLOB '[0-2][0-9]:[0-5][0-9]'),
+    correo_destino        TEXT NOT NULL,
+    ultima_fecha_enviada  TEXT,
+    created_at            TEXT NOT NULL,
+    updated_at            TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_config_reportes_email_activo ON configuracion_reportes_email (activo, hora_envio);
+
+-- =====================================================================
+-- 13. INDICES
 -- =====================================================================
 
 CREATE INDEX IF NOT EXISTS idx_luminarias_zona    ON luminarias (id_zona);

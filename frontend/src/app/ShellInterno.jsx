@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import BotonSonido from "../components/BotonSonido.jsx";
 import Marca from "../components/Marca.jsx";
@@ -6,6 +7,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import PulsoDeLuz from "../light/PulsoDeLuz.jsx";
 import { RESORTE } from "../lib/movimiento.js";
 import { sonido } from "../lib/sound.js";
+import ConfiguracionCorreo from "../modules/cuenta/ConfiguracionCorreo.jsx";
 import { MonitoreoProvider } from "../modules/monitoreo/MonitoreoContext.jsx";
 import { RecorridoProvider, useRecorrido } from "../onboarding/RecorridoContext.jsx";
 import AvisoDeOportunidad from "../oportunidad/AvisoDeOportunidad.jsx";
@@ -162,9 +164,41 @@ function BotonAyuda() {
   );
 }
 
+/**
+ * El correo diario de actividad. Vive JUSTO ENCIMA del botón de
+ * cuenta/cerrar-sesión (mismo grupo, mismo orden en el DOM) porque
+ * configura algo de esa misma cuenta: a qué hora y a qué correo le llega el
+ * resumen de lo que hizo (consultas, reportes) y de lo que SELENE encontró
+ * (hallazgos). Ver `modules/cuenta/ConfiguracionCorreo.jsx`.
+ */
+function BotonCorreoDiario({ onAbrir }) {
+  return (
+    <motion.button
+      whileHover={{ y: -1.5 }}
+      whileTap={{ scale: 0.94 }}
+      transition={RESORTE.firme}
+      onClick={() => {
+        sonido.pulso();
+        onAbrir();
+      }}
+      onMouseEnter={() => sonido.roce()}
+      title="Resumen diario por correo"
+      aria-label="Configurar el resumen diario de actividad por correo"
+      className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-linen text-ink-3 outline-none transition-colors duration-300 hover:border-ink-4 hover:text-ink"
+    >
+      <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2.2" />
+        <path d="M3.5 6.5 L12 13 L20.5 6.5" />
+      </svg>
+      <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgb(var(--light-rgb)/0.35)_0%,transparent_70%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+    </motion.button>
+  );
+}
+
 function Interior({ children }) {
   const { pathname } = useLocation();
   const { usuario, logout } = useAuth();
+  const [correoAbierto, setCorreoAbierto] = useState(false);
 
   return (
     <>
@@ -200,6 +234,9 @@ function Interior({ children }) {
             {/* Sin etiqueta: en el riel y en la barra inferior el espacio se
                 mide en píxeles reales, y la píldora con texto no cabe. */}
             <BotonSonido compacto />
+            {/* Encima del botón de cuenta/salir a propósito: ver el docstring
+                de `BotonCorreoDiario`. */}
+            <BotonCorreoDiario onAbrir={() => setCorreoAbierto(true)} />
             <button
               onClick={() => {
                 sonido.click(false);
@@ -222,6 +259,10 @@ function Interior({ children }) {
           </AnimatePresence>
         </main>
       </div>
+
+      <AnimatePresence>
+        {correoAbierto && <ConfiguracionCorreo key="correo-diario" onCerrar={() => setCorreoAbierto(false)} />}
+      </AnimatePresence>
     </>
   );
 }

@@ -73,6 +73,29 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str = "rEVYTKPqwSMhytFPayIb"
     elevenlabs_model_id: str = "eleven_multilingual_v2"
 
+    # --- Reporte diario de actividad por correo (backend/api/email_reports.py) ---
+    # SMTP puro (smtplib de la libreria estandar, sin dependencia nueva), tal
+    # como lo pidio el profesor -- nada de un proveedor transaccional por API.
+    # `smtp_host` vacio es la señal de "todavia sin configurar": el hilo de
+    # fondo (ver main.py) se lo salta sin fallar, y `POST
+    # /api/configuracion/reportes-email/probar` responde 503 explicando por
+    # que en vez de intentar conectar a un host vacio.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Remitente que ve quien recibe el correo. Si queda vacio se usa smtp_user.
+    smtp_from: str = ""
+    # STARTTLS (puerto 587, el tipico de Gmail/Outlook) vs. TLS implicito
+    # (puerto 465). En false y sin TLS en absoluto solo tiene sentido contra
+    # un relay SMTP interno de pruebas.
+    smtp_use_tls: bool = True
+    # Zona horaria en la que la persona escribe `hora_envio` en el formulario
+    # y en la que se compara "es la hora" cada minuto -- IANA (ver la lista de
+    # la base de datos de zonas horarias), no un offset fijo, para que no se
+    # desalinee con el horario de verano donde aplique.
+    app_timezone: str = "America/Bogota"
+
     @property
     def project_root(self) -> Path:
         return PROJECT_ROOT
@@ -80,6 +103,14 @@ class Settings(BaseSettings):
     @property
     def energy_model_path(self) -> Path:
         return Path(self.energy_model_dir)
+
+    @property
+    def smtp_from_effective(self) -> str:
+        return self.smtp_from or self.smtp_user
+
+    @property
+    def smtp_configurado(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
 
 settings = Settings()

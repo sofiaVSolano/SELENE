@@ -187,6 +187,13 @@ export const api = {
   descargarReporteAsistente: (idReporte) => requestBlob(`/api/asistente/reporte/${idReporte}/descargar`),
   eliminarReporteAsistente: (idReporte) =>
     request(`/api/asistente/reporte/${idReporte}`, { method: "DELETE" }),
+
+  // Resumen diario de actividad por correo (SMTP, ver backend/api/email_reports.py).
+  // La fila se crea perezosa en el backend la primera vez que se pide.
+  obtenerConfigReporteEmail: () => request("/api/configuracion/reportes-email"),
+  actualizarConfigReporteEmail: (payload) =>
+    request("/api/configuracion/reportes-email", { method: "PUT", body: payload }),
+  probarConfigReporteEmail: () => request("/api/configuracion/reportes-email/probar", { method: "POST" }),
 };
 
 export { ApiError };

@@ -343,3 +343,23 @@ class RecomendacionOut(BaseModel):
     prioridad: str
     aplicada: bool
     fecha_hora: dt.datetime
+
+
+# --- Configuracion del reporte diario por correo -----------------------------
+
+RE_HORA_ENVIO = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class ConfiguracionReporteEmailOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    activo: bool
+    hora_envio: str
+    correo_destino: str
+    ultima_fecha_enviada: str | None = None
+
+
+class ConfiguracionReporteEmailUpdate(BaseModel):
+    activo: bool
+    hora_envio: str = Field(pattern=RE_HORA_ENVIO)
+    correo_destino: EmailStr
