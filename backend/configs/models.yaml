@@ -1,14 +1,17 @@
 # =============================================================================
-# Configuracion de inferencia: fusion iluminacion (FasterRCNN+ADE20K) + personas (RT-DETR+COCO)
+# Configuracion de inferencia: fusion iluminacion (FasterRCNN+ADE20K) + personas (FasterRCNN+COCO)
 # =============================================================================
 # Todo lo que de otro modo estaria hardcodeado en el codigo (rutas de pesos,
 # umbrales de confianza, intervalo de throttling, fuente de video) vive aqui.
 #
-# El detector de iluminacion es fasterrcnn_resnet50_fpn_v2 (torchvision, dos
-# etapas) y el de personas es RT-DETR (Ultralytics, transformer de una sola
-# pasada sin NMS). Ambos son pesados en comparacion con un YOLO convencional,
-# por lo que los DOS se re-ejecutan cada N frames via throttling/async en
-# tiempo real (ver app/throttled_detector.py), no solo el de iluminacion.
+# LOS DOS detectores son fasterrcnn_resnet50_fpn_v2 (torchvision, dos etapas
+# con NMS): el de iluminacion entrenado sobre ADE20K y el de personas sobre
+# COCO 2017. El de personas era RT-DETR (Ultralytics) hasta el 2026-09-09; se
+# cambio a Faster R-CNN por decision de la investigacion, para que la
+# comparacion entre ambas ramas del sistema use la misma arquitectura.
+# Son pesados en comparacion con un YOLO convencional, por lo que los DOS se
+# re-ejecutan cada N frames via throttling/async en tiempo real (ver
+# app/throttled_detector.py), no solo el de iluminacion.
 
 device: "auto"        # auto | cuda | cpu. "auto" detecta CUDA y cae a CPU con aviso si no hay GPU.
 
@@ -23,14 +26,25 @@ lighting_detector:
   async_execution: true       # ejecutar en un hilo aparte para no bloquear el loop de video
 
 # --- Detector de personas ----------------------------------------------------
-# Modelo: RT-DETR (Ultralytics, variante "l"), entrenado sobre COCO 2017
-# (clase unica "person"), ver ../ModelosDeteccionComp/Proyecto_RTDETR_COCO.
-# Checkpoint de entrega: checkpoint nativo de Ultralytics (ver
+# Modelo: fasterrcnn_resnet50_fpn_v2 (torchvision), entrenado sobre COCO 2017
+# (clase unica "person"), ver ../ModelosDeteccionComp/Proyecto_FasterRCNN_COCO.
+# Corrida usada: la TERCERA ("FasterRCNN_COCO copy 3", config
+# fasterrcnn_coco_3.yaml); los pesos exportados son los del EMA, no los del
+# modelo instantaneo.
+# Checkpoint de entrega: dict con model_state_dict + num_classes + imgsz (ver
 # detectors/person_detector.py).
+# Metricas sobre val2017 completo (5000 imagenes), frente al RT-DETR anterior:
+#   Faster R-CNN v3:  mAP50 0.806  mAP50-95 0.543  P 0.627  R 0.823  ~6 FPS
+#   RT-DETR (previo): mAP50 0.760  mAP50-95 0.536  P 0.825  R 0.684  ~14 FPS
+# El cambio sube el recall (menos personas perdidas) a costa de la precision:
+# para SELENE es la direccion conservadora, porque una persona NO detectada es
+# lo que produce un aviso de derroche falso.
 person_detector:
-  weights_path: "weights/person/RTDETR_COCO.pt"
-  conf_threshold: 0.5          # igual al prediction.conf_threshold del proyecto de origen (0.25 por defecto, se sube a 0.5 para consistencia con lighting_detector)
-  interval_frames: 5           # RT-DETR (~33M params, 108 GFLOPs a 640px) sigue siendo pesado, no corre cada frame
+  weights_path: "weights/person/FasterRCNN_COCO.pth"
+  conf_threshold: 0.5          # igual al prediction.conf_threshold del proyecto de origen (fasterrcnn_coco_3.yaml)
+  interval_frames: 12          # SUBIDO 5 -> 12: Faster R-CNN (~43M params, 452 GFLOPs a 640px) rinde ~6 FPS
+                               # frente a los ~14 del RT-DETR anterior, asi que mantener 5 encolaria
+                               # inferencias mas rapido de lo que el hilo puede resolverlas.
   async_execution: true        # ejecutar en un hilo aparte para no bloquear el loop de video
 
 # --- Video / captura en tiempo real -------------------------------------------
