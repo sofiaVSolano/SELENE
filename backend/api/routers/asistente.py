@@ -29,6 +29,7 @@ from ..assistant.schemas import (
 )
 from ..database import get_db
 from ..deps import get_current_user
+from ..rate_limit import limite_preguntas, limite_reportes
 
 router = APIRouter(prefix="/api/asistente", tags=["asistente"])
 
@@ -39,7 +40,7 @@ _MAX_AUDIO_BYTES = 20 * 1024 * 1024  # 20 MB, generoso para un clip de voz de un
 async def preguntar(
     audio: UploadFile = File(...),
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user),
+    usuario: models.Usuario = Depends(limite_preguntas),
 ) -> PreguntaAudioResponse:
     contenido = await audio.read()
     if not contenido:
@@ -65,7 +66,7 @@ async def preguntar(
 def preguntar_texto(
     payload: PreguntaTextoRequest,
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user),
+    usuario: models.Usuario = Depends(limite_preguntas),
 ) -> PreguntaTextoResponse:
     """Turno de conversacion escrito. Comparte contexto, historial y tabla
     `consultas` con `/preguntar` (voz): son la misma conversacion."""
@@ -110,8 +111,18 @@ def _a_reporte_out(request: Request, reporte: models.Reporte) -> ReporteOut:
 def sugerencias_reporte(
     limite_consultas: int = 20,
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user),
+    usuario: models.Usuario = Depends(limite_preguntas),
 ) -> list[TipoReporteSugerido]:
+    """Gasta una llamada de clasificacion al LLM, asi que tambien va limitada.
+
+    Va con `limite_preguntas` (que cuenta filas de `consultas`) y no con un
+    contador propio porque este endpoint no persiste nada: su cota es
+    INDIRECTA -- ata las sugerencias al ritmo de la conversacion de la que
+    salen, pero un cliente con conversacion previa puede pedirlas mas veces
+    por minuto que el umbral. Queda anotado como riesgo residual de LLM10; el
+    dia que moleste, la solucion es una tabla de uso propia, no un contador en
+    memoria (ver la cabecera de `api/rate_limit.py`).
+    """
     try:
         claves = reports.sugerir_tipos_reporte(db, usuario, limite_consultas=limite_consultas)
     except AssistantConfigError as exc:
@@ -124,7 +135,7 @@ def generar_reporte(
     payload: GenerarReporteRequest,
     request: Request,
     db: Session = Depends(get_db),
-    usuario: models.Usuario = Depends(get_current_user),
+    usuario: models.Usuario = Depends(limite_reportes),
 ) -> ReporteOut:
     try:
         reporte = reports.generar_reporte(

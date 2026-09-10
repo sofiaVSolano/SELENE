@@ -89,7 +89,7 @@ ModeloDeteccionLamp_App/
 │   │   └── lighting_*.yaml              # config de lightingAnalyzer (pesos/umbrales/reglas)
 │   ├── lightingAnalyzer/                # modulo de analisis de iluminacion (CV clasico)
 │   ├── weights/
-│   │   ├── lighting/FasterRCNN_ADE20KOnly_best.pth
+│   │   ├── lighting/FasterRCNN_ADE20KOnly_Better_best.pth
 │   │   └── person/FasterRCNN_COCO.pth
 │   ├── detectors/
 │   │   ├── lighting_detector.py         # wrapper FasterRCNN+ADE20K -> list[dict]
@@ -203,7 +203,7 @@ docker compose down                  # parar todo (con -v para borrar tambien la
 
 | Archivo en este repo | Copiado desde |
 |---|---|
-| `backend/weights/lighting/FasterRCNN_ADE20KOnly_best.pth` | `ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_best.pth` |
+| `backend/weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth` | `ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_Better_best.pth` |
 | `backend/weights/person/FasterRCNN_COCO.pth` | `ModelosDeteccionComp/Proyecto_FasterRCNN_COCO/modelosEntrenados/FasterRCNN_COCO_3.pth` |
 
 Los pesos se **copiaron**, no se movieron: los proyectos de investigacion

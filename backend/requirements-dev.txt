@@ -1,0 +1,14 @@
+# Dependencias SOLO de desarrollo/pruebas. No van en la imagen de Docker
+# (Dockerfile instala requirements.txt): la suite se corre en el venv local.
+#
+#   .venv/Scripts/python -m pip install -r requirements-dev.txt
+#   .venv/Scripts/python -m pytest
+
+pytest>=8.0
+# `fastapi.testclient.TestClient` esta construido sobre httpx; sin el, los
+# tests de API (tests/test_api_*.py) fallan al importar con un RuntimeError
+# pidiendo justamente este paquete.
+httpx>=0.27
+
+# Medicion de cobertura de la suite (`python -m pytest --cov=api --cov=lightingAnalyzer`).
+pytest-cov>=7.0

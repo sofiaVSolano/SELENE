@@ -7,7 +7,8 @@ investigacion `ModeloDeteccionLamp` (ver
 `entrenamientos/FasterRCNN_ADE20K.ipynb`, celdas de construccion del modelo
 y de inferencia cualitativa).
 
-El checkpoint de entrega (`weights/lighting/FasterRCNN_ADE20KOnly_best.pth`)
+El checkpoint de entrega (`weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth`,
+tercera iteracion de entrenamiento, la seleccionada por la investigacion)
 es un dict guardado con `torch.save` que contiene:
     - "state_dict": pesos del modelo ya afinado (fine-tuned).
     - "class_names": lista de nombres de clase real, sin fondo (["Window", "Luminaire"]).
@@ -49,7 +50,7 @@ class LightingDetector:
         if not weights_path.exists():
             raise FileNotFoundError(
                 f"No se encontro el checkpoint del detector de iluminacion: {weights_path}. "
-                "Copialo desde ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_best.pth."
+                "Copialo desde ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_Better_best.pth."
             )
 
         self.score_threshold = score_threshold

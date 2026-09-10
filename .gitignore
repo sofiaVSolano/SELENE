@@ -33,3 +33,4 @@ backend/.env
 # backend/database/data/ (bind mount de Docker, ver docker-compose.yml).
 backend/database/*.db
 backend/database/data/
+.pytest_cache/

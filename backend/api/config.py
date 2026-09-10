@@ -63,6 +63,54 @@ class Settings(BaseSettings):
     openai_tts_voice: str = "alloy"
     asistente_reports_dir: str = "reports/asistente"
 
+    # --- Consumo acotado del asistente (OWASP LLM10) -------------------------
+    # La ENTRADA ya estaba acotada (`PreguntaTextoRequest.pregunta` con
+    # max_length=4000 y `_MAX_AUDIO_BYTES` de 20 MB en el router). Lo que
+    # faltaba era acotar la SALIDA y la FRECUENCIA: sin `max_tokens` el modelo
+    # puede responder hasta el tope de su ventana, y sin limite de tasa una
+    # sola cuenta puede encadenar peticiones hasta agotar la cuota de OpenAI.
+    #
+    # Timeout y reintentos del cliente: por defecto el SDK de OpenAI espera 10
+    # MINUTOS y reintenta 2 veces, asi que una llamada colgada podia ocupar un
+    # worker de uvicorn media hora. 30 s cubre de sobra la latencia real de
+    # gpt-4o-mini (unos pocos segundos) y 1 reintento absorbe un fallo de red
+    # puntual sin multiplicar el gasto por tres.
+    openai_timeout_seconds: float = 30.0
+    openai_max_retries: int = 1
+
+    # Techo de tokens de SALIDA por llamada de chat, uno por tipo de llamada
+    # (no un valor unico: pedirle el mismo techo a una respuesta hablada que a
+    # un reporte de 6 secciones trunca uno o desperdicia el otro).
+    #
+    # - respuesta: el propio SYSTEM_PROMPT pide respuestas breves porque se
+    #   leen en voz alta; 300 tokens son ~200 palabras en espanol, mas de lo
+    #   que nadie quiere escuchar de corrido. Cubre tambien el resumen de la
+    #   conversacion (`reports._generar_resumen`, tope de 120 palabras).
+    # - reporte: el JSON de `generar_reporte_detallado` lleva resumen + 3 a 6
+    #   secciones con parrafos, renglones y tablas. ~900 palabras de prosa en
+    #   espanol rondan los 1.300 tokens; 2.000 deja holgura para la sintaxis
+    #   JSON y una seccion larga sin quedarse corto. Si aun asi truncara, el
+    #   JSON llega incompleto, `json.loads` falla y el router responde 422
+    #   ("intenta de nuevo") en vez de un PDF a medias.
+    # - clasificacion: la respuesta es {"tipos_relevantes": [...]} con como
+    #   mucho 4 claves cortas del catalogo (~40 tokens); 60 es el minimo
+    #   razonable con margen para el formato.
+    openai_max_tokens_respuesta: int = 300
+    openai_max_tokens_reporte: int = 2000
+    openai_max_tokens_clasificacion: int = 60
+
+    # Limite de tasa por usuario y por minuto (ver `api/rate_limit.py`). El de
+    # reportes es mas estricto a proposito: generar un reporte cuesta una
+    # llamada de redaccion larga (hasta `openai_max_tokens_reporte`) mas el
+    # renderizado del PDF y su escritura en disco, mientras que una pregunta
+    # cuesta una respuesta corta. 12/min es una pregunta cada 5 segundos:
+    # holgado para una persona conversando, inutil para un script.
+    # OJO: 0 o menos NO desactiva el limite, lo cierra por completo (ver el
+    # comentario de `_limite_por_minuto`): es un control de seguridad, un
+    # valor mal puesto tiene que romper de forma visible, no en silencio.
+    asistente_max_preguntas_por_minuto: int = 12
+    asistente_max_reportes_por_minuto: int = 3
+
     # --- Voz de Lum, el recorrido de bienvenida (backend/api/routers/recorrido.py) ---
     # ElevenLabs es el motor PRINCIPAL de esta narración (voz cálida y natural
     # de verdad, a diferencia de `SpeechSynthesis` del navegador). Si no hay

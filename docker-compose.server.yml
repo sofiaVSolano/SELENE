@@ -18,7 +18,7 @@
 # IMPORTANTE -- estas carpetas NO viajan con `git clone` porque estan en
 # .gitignore (pesos pesados / datos locales). Hay que copiarlas a mano al VM
 # antes de levantar:
-#   backend/weights/lighting/FasterRCNN_ADE20KOnly_best.pth
+#   backend/weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth
 #   backend/weights/person/FasterRCNN_COCO.pth
 #   backend/weights/person/RTDETR_COCO.pt
 #   backend/.env (secretos reales -- ver backend/.env.server.example)

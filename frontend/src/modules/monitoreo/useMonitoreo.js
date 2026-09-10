@@ -89,6 +89,11 @@ export function useMonitoreo() {
    * paso intermedio de "ahora dale a analizar" — pedirle eso al usuario es
    * pedirle que opere un instrumento, y SELENE tiene que sentirse como que
    * simplemente empieza a mirar.
+   *
+   * Ojo: llamar a esto ABRE LA CÁMARA. El consentimiento de grabación no se
+   * comprueba aquí sino en la pantalla que llama (`CentroMonitoreo` monta
+   * `AutorizacionGrabacion` y sólo llama a esta función cuando se aceptó);
+   * cualquier punto de entrada nuevo tiene que pasar por esa misma puerta.
    */
   const iniciarMonitoreo = useCallback(async () => {
     setError(null);

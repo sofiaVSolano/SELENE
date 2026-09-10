@@ -16,6 +16,11 @@ import Cajas from "./Cajas.jsx";
  * la cámara y arranca el análisis continuo a la vez. No hay paso de "ahora
  * dale a analizar" ni de subir un archivo: se mira, y punto.
  *
+ * El único trámite entre el gesto y la cámara es la autorización de
+ * grabación (`AutorizacionGrabacion.jsx`), que monta quien pasa `onIniciar`
+ * —hoy `CentroMonitoreo`—. Este componente no la conoce: pide iniciar, y
+ * quien manda decide si eso enciende algo.
+ *
  * Mientras el monitoreo corre, la cámara NUNCA se congela: las cajas de la
  * última inferencia se dibujan encima del vídeo en vivo y se van
  * reemplazando solas con cada ciclo, así que lo que el usuario ve es

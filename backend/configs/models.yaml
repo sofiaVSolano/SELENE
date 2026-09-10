@@ -19,8 +19,15 @@ device: "auto"        # auto | cuda | cpu. "auto" detecta CUDA y cae a CPU con a
 # Modelo: fasterrcnn_resnet50_fpn_v2 (torchvision), entrenado sobre
 # ADE20K_WindowLuminaire (ver ../ModeloDeteccionLamp). Checkpoint de entrega:
 # dict con state_dict + class_names + img_size (ver detectors/lighting_detector.py).
+# Corrida usada: la TERCERA ("ADE20KOnly_Better", 60/60 epocas, mejor epoca 50).
+# Hasta el 2026-09-09 se cargaba la PRIMERA ("ADE20KOnly", 19/50 epocas, mejor
+# epoca 4), que es un checkpoint distinto y peor; se corrigio para que coincida
+# con el modelo que la investigacion selecciono y documenta.
+# Metricas sobre el split de prueba, 1a iteracion -> 3a iteracion:
+#   mAP50    0.382 -> 0.388     mAP50-95  0.220 -> 0.223
+#   P        0.458 -> 0.497     R         0.436 -> 0.431     FPS  6.1 -> 6.6
 lighting_detector:
-  weights_path: "weights/lighting/FasterRCNN_ADE20KOnly_best.pth"
+  weights_path: "weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth"
   score_threshold: 0.5        # igual al SCORE_THRESHOLD del notebook de entrenamiento
   interval_frames: 15         # en tiempo real: re-ejecutar cada N frames (1 = cada frame, sin throttling)
   async_execution: true       # ejecutar en un hilo aparte para no bloquear el loop de video

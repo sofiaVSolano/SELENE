@@ -22,7 +22,15 @@ def _client():
         )
     from openai import OpenAI  # import perezoso: no forzar la dependencia si el modulo no se usa
 
-    return OpenAI(api_key=settings.gpt_api_key)
+    # `timeout` y `max_retries` explicitos, no los del SDK: por defecto son 10
+    # minutos y 2 reintentos, asi que una sola llamada colgada podia retener un
+    # worker de uvicorn hasta media hora (OWASP LLM10, consumo no acotado).
+    # Los valores viven en `config.py`, no aqui.
+    return OpenAI(
+        api_key=settings.gpt_api_key,
+        timeout=settings.openai_timeout_seconds,
+        max_retries=settings.openai_max_retries,
+    )
 
 
 def transcribir_audio(audio_bytes: bytes, filename: str, content_type: str) -> str:
@@ -42,6 +50,10 @@ def generar_respuesta_chat(mensajes: list[dict]) -> str:
         model=settings.openai_chat_model,
         messages=mensajes,
         temperature=0.3,
+        # Techo de salida: la respuesta se lee en voz alta y el SYSTEM_PROMPT
+        # ya la pide breve, pero "pedirla breve" es una sugerencia y esto un
+        # limite. Ver `settings.openai_max_tokens_respuesta`.
+        max_tokens=settings.openai_max_tokens_respuesta,
     )
     return respuesta.choices[0].message.content.strip()
 
@@ -69,6 +81,8 @@ def clasificar_tipos_reporte(transcript: str, catalogo: dict[str, dict]) -> list
         ],
         temperature=0,
         response_format={"type": "json_object"},
+        # Solo tiene que devolver hasta 4 claves cortas del catalogo.
+        max_tokens=settings.openai_max_tokens_clasificacion,
     )
     contenido = respuesta.choices[0].message.content
     try:
@@ -174,6 +188,10 @@ dedicate a explicar por que son asi y que conviene hacer.
         messages=mensajes,
         temperature=0.4,
         response_format={"type": "json_object"},
+        # Mas generoso que el resto porque aqui el modelo redacta un documento
+        # entero, no una frase. Si el techo truncara el JSON, el `except` de
+        # abajo lo convierte en un 422 con mensaje, no en un PDF a medias.
+        max_tokens=settings.openai_max_tokens_reporte,
     )
     try:
         return json.loads(respuesta.choices[0].message.content)

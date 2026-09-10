@@ -4,6 +4,7 @@ import Boton from "../../components/ui/Boton.jsx";
 import { useLight } from "../../light/LightContext.jsx";
 import { escena, trans } from "../../lib/movimiento.js";
 import { sonido } from "../../lib/sound.js";
+import AutorizacionGrabacion from "./AutorizacionGrabacion.jsx";
 import Comparador from "./Comparador.jsx";
 import LineaDeTiempo from "./LineaDeTiempo.jsx";
 import { useMonitoreoCompartido } from "./MonitoreoContext.jsx";
@@ -29,6 +30,12 @@ export default function CentroMonitoreo() {
   const { iluminar } = useLight();
   const [comparando, setComparando] = useState(false);
   const [seleccion, setSeleccion] = useState([]);
+  /* La cámara no se abre por pulsar "iniciar monitoreo": se abre por
+     autorizar la grabación. El diálogo se monta de cero en cada intento,
+     así que las casillas nunca llegan marcadas de la sesión anterior —
+     quién está en la sala cambia entre una sesión y la siguiente, y ese
+     consentimiento no se hereda. */
+  const [pidiendoAutorizacion, setPidiendoAutorizacion] = useState(false);
 
   const analisis = m.capturaActiva?.analisis || null;
   // `activa === null` ya significa "sigue la última captura": es exactamente
@@ -170,7 +177,7 @@ export default function CentroMonitoreo() {
                   onVolverEnVivo={() => m.setActiva(null)}
                   onIniciar={() => {
                     sonido.click(true);
-                    m.iniciarMonitoreo();
+                    setPidiendoAutorizacion(true);
                   }}
                   onDetener={() => {
                     sonido.click(false);
@@ -223,6 +230,23 @@ export default function CentroMonitoreo() {
           />
         </div>
       </div>
+
+      {/* ------------------------ AUTORIZACIÓN DE GRABACIÓN ------------------------ */}
+      <AnimatePresence>
+        {pidiendoAutorizacion && (
+          <AutorizacionGrabacion
+            sala={m.salas.find((s) => s.id_zona === m.idZona)?.nombre}
+            onCancelar={() => {
+              sonido.click(false);
+              setPidiendoAutorizacion(false);
+            }}
+            onAutorizar={() => {
+              setPidiendoAutorizacion(false);
+              m.iniciarMonitoreo();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
