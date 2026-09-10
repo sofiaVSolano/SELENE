@@ -10,6 +10,12 @@
 #   SERVER_HOST         IP o dominio publico del VM. Default: 104.225.223.220
 #   BACKEND_PORT         Puerto publico del backend. Default: 9023
 #   FRONTEND_PORT         Puerto publico del frontend. Default: 3033
+#   PUBLIC_ORIGIN       Origen publico de la app cuando se sirve detras del
+#                       proxy con dominio + SSL (ej. https://seleneapp.site).
+#                       Al definirlo, el frontend pega a <PUBLIC_ORIGIN>/api/...
+#                       (same-origin: sin CORS ni mixed-content) y el backend
+#                       acepta ese origen. Sin definirlo, todo sigue por
+#                       IP:puerto como antes.
 #   ENERGY_MODEL_HOST_DIR  Carpeta en el VM con ProyectoPrediccionEnergetica
 #                          (predict.py, src/, checkpoints/, modelosEntrenados/,
 #                          configs/ -- NO hace falta datasetsProcesados/,
@@ -34,7 +40,7 @@ services:
       - backend/.env
     environment:
       DATABASE_URL: sqlite:////app/data/selene.db
-      CORS_ORIGINS: '["http://${SERVER_HOST:-104.225.223.220}:${FRONTEND_PORT:-3033}"]'
+      CORS_ORIGINS: '["${PUBLIC_ORIGIN:-http://104.225.223.220:3033}", "http://${SERVER_HOST:-104.225.223.220}:${FRONTEND_PORT:-3033}"]'
       ENERGY_MODEL_DIR: /energy_model
       # Hora local para lo que se imprime en los reportes (ver el mismo
       # comentario en docker-compose.yml). Lo persistido sigue en UTC.
@@ -51,7 +57,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.server
       args:
-        VITE_API_URL: http://${SERVER_HOST:-104.225.223.220}:${BACKEND_PORT:-9023}
+        VITE_API_URL: ${PUBLIC_ORIGIN:-http://104.225.223.220:9023}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3033}:80"
