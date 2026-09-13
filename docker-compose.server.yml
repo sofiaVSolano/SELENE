@@ -25,8 +25,7 @@
 # .gitignore (pesos pesados / datos locales). Hay que copiarlas a mano al VM
 # antes de levantar:
 #   backend/weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth
-#   backend/weights/person/FasterRCNN_COCO.pth
-#   backend/weights/person/RTDETR_COCO.pt
+#   backend/weights/person/RTDETR_COCO_MEJORADO.pt  (detector de personas activo)
 #   backend/.env (secretos reales -- ver backend/.env.server.example)
 #   energy_model/ (o la carpeta que apunte ENERGY_MODEL_HOST_DIR)
 # Ver README / instrucciones de deploy para el detalle de como copiarlas.

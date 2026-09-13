@@ -10,16 +10,16 @@ video) de:
    `lightingAnalyzer/` (CV clasico, sin redes neuronales) que calcula
    brillo, contraste, hotspots y un indicador Natural/Artificial a partir de
    esas detecciones.
-2. **Personas** (`person`) — `fasterrcnn_resnet50_fpn_v2` (torchvision),
-   entrenado sobre COCO 2017 (clase unica "person") en
-   [`ModelosDeteccionComp/Proyecto_FasterRCNN_COCO`](../ModelosDeteccionComp/Proyecto_FasterRCNN_COCO),
-   tercera corrida (`fasterrcnn_coco_3.yaml`, pesos EMA). Reemplazo al
-   RT-DETR (Ultralytics) el 2026-09-09.
+2. **Personas** (`person`) — RT-DETR (Ultralytics, variante "l"), entrenado
+   sobre COCO 2017 (clase unica "person") en
+   [`ModelosDeteccionComp/Proyecto_RTDETR_COCO`](../ModelosDeteccionComp/Proyecto_RTDETR_COCO),
+   corrida del notebook `RTDETR_COCO_MEJORADO.ipynb`. Volvio a reemplazar al
+   Faster R-CNN COCO el 2026-09-13.
 
-Ambos detectores comparten arquitectura (Faster R-CNN de dos etapas con NMS)
-y son pesados en relacion a un detector liviano de una sola pasada: ninguno
-de los dos corre en cada frame en modo tiempo real (ver "Diseno tecnico
-relevante").
+Ambos detectores son pesados en relacion a un detector liviano de una sola
+pasada (dos etapas el de iluminacion, transformer sin NMS el de personas):
+ninguno de los dos corre en cada frame en modo tiempo real (ver "Diseno
+tecnico relevante").
 
 Este workspace **no entrena nada**: solo consume los checkpoints ya
 entregados por ambos proyectos de investigacion (copiados en
@@ -90,10 +90,10 @@ ModeloDeteccionLamp_App/
 │   ├── lightingAnalyzer/                # modulo de analisis de iluminacion (CV clasico)
 │   ├── weights/
 │   │   ├── lighting/FasterRCNN_ADE20KOnly_Better_best.pth
-│   │   └── person/FasterRCNN_COCO.pth
+│   │   └── person/RTDETR_COCO_MEJORADO.pt
 │   ├── detectors/
 │   │   ├── lighting_detector.py         # wrapper FasterRCNN+ADE20K -> list[dict]
-│   │   └── person_detector.py           # wrapper FasterRCNN+COCO -> list[dict]
+│   │   └── person_detector.py           # wrapper RT-DETR+COCO -> list[dict]
 │   ├── app/
 │   │   ├── device_utils.py              # seleccion cuda/cpu
 │   │   ├── overlay.py                   # HUD (cajas, FPS, %natural/artificial)
@@ -112,14 +112,13 @@ ModeloDeteccionLamp_App/
 
 ## Diseno tecnico relevante
 
-- **Throttling de ambos detectores:** los dos son `fasterrcnn_resnet50_fpn_v2`
-  (dos etapas, ~43M parametros / 452 GFLOPs a 640px), mucho mas pesados que un
-  detector de una sola pasada convencional (p. ej. el YOLOv11n que uso al
-  principio el detector de personas, o el RT-DETR que uso despues). Como ni la
-  geometria de ventanas/luminarias ni la posicion de las personas cambian
-  drasticamente frame a frame, ambos detectores se re-ejecutan solo cada
-  `interval_frames` propio (`configs/models.yaml`: 15 para iluminacion, 12
-  para personas), en un
+- **Throttling de ambos detectores:** tanto `fasterrcnn_resnet50_fpn_v2`
+  (dos etapas) como RT-DETR (transformer sin NMS, ~33M parametros) son mucho
+  mas pesados que un detector de una sola pasada convencional (p. ej. el
+  YOLOv11n que usaba antes el detector de personas). Como ni la geometria de
+  ventanas/luminarias ni la posicion de las personas cambian drasticamente
+  frame a frame, ambos detectores se re-ejecutan solo cada `interval_frames`
+  propio (`configs/models.yaml`: 15 para iluminacion, 5 para personas), en un
   `ThreadPoolExecutor(max_workers=2)` compartido (`app/throttled_detector.py`)
   para no congelar el loop de captura/display. Como ambos modelos comparten
   la misma GPU, el trabajo se serializa igual que si cada uno tuviera su
@@ -134,11 +133,9 @@ ModeloDeteccionLamp_App/
 - **Checkpoint de iluminacion sin descarga de internet:** `lighting_detector.py`
   construye su modelo con `weights=None` (sin volver a descargar los pesos
   base preentrenados en COCO) porque el fine-tuning completo ya vive en el
-  `state_dict` del checkpoint entregado. `person_detector.py` hace lo mismo,
-  pero sobre un checkpoint con otras claves (`model_state_dict` +
-  `num_classes` + `imgsz` en vez de `state_dict` + `class_names`), por lo que
-  cada wrapper reconstruye su modelo por separado en vez de compartir un
-  helper.
+  `state_dict` del checkpoint entregado. `person_detector.py` (RT-DETR) usa
+  el checkpoint nativo de Ultralytics, que ya incluye la arquitectura
+  completa (no requiere reconstruir el modelo a mano).
 
 ## Aplicación web SELENE (`backend/` + `frontend/`)
 
@@ -204,7 +201,7 @@ docker compose down                  # parar todo (con -v para borrar tambien la
 | Archivo en este repo | Copiado desde |
 |---|---|
 | `backend/weights/lighting/FasterRCNN_ADE20KOnly_Better_best.pth` | `ModeloDeteccionLamp/modelosEntrenados/FasterRCNN_ADE20KOnly_Better_best.pth` |
-| `backend/weights/person/FasterRCNN_COCO.pth` | `ModelosDeteccionComp/Proyecto_FasterRCNN_COCO/modelosEntrenados/FasterRCNN_COCO_3.pth` |
+| `backend/weights/person/RTDETR_COCO_MEJORADO.pt` | `ModelosDeteccionComp/Proyecto_RTDETR_COCO/checkpoints/RTDETR_COCO_prev_20260912_161827/weights/best.pt` (corrida de `RTDETR_COCO_MEJORADO.ipynb`; **no** `modelosEntrenados/RTDETR_COCO.pth`, que ya es de otra corrida) |
 
 Los pesos se **copiaron**, no se movieron: los proyectos de investigacion
 originales quedan intactos y siguen siendo la fuente de verdad si se

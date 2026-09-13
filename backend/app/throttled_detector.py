@@ -6,16 +6,16 @@ opcionalmente en un hilo aparte via un `Executor` compartido, devolviendo la
 ultima deteccion disponible en los frames intermedios.
 
 Los dos detectores de esta app son pesados en relacion a un detector liviano
-de una sola pasada: tanto `LightingDetector` como `PersonDetector` son
-`fasterrcnn_resnet50_fpn_v2` (torchvision, dos etapas con NMS, ~43M
-parametros / 452 GFLOPs a 640px), entrenados sobre ADE20K y COCO 2017
-respectivamente. Correr cualquiera de los dos en cada frame haria caer la
-tasa de refresco del video muy por debajo de tiempo real, por lo que ambos se
-manejan con la misma logica de throttling/async.
+de una sola pasada: `LightingDetector` es `fasterrcnn_resnet50_fpn_v2`
+(torchvision, dos etapas) y `PersonDetector` es RT-DETR (Ultralytics,
+transformer sin NMS, ~33M parametros / 108 GFLOPs a 640px). Correr
+cualquiera de los dos en cada frame haria caer la tasa de refresco del video
+muy por debajo de tiempo real, por lo que ambos se manejan con la misma
+logica de throttling/async.
 
-Nota: `PersonDetector` fue RT-DETR (Ultralytics) hasta el 2026-09-09, que era
-~2.4x mas rapido; su `interval_frames` en configs/models.yaml subio de 5 a 12
-al hacer el cambio.
+Nota: entre el 2026-09-09 y el 2026-09-13 `PersonDetector` fue Faster R-CNN
+(~2.4x mas lento que RT-DETR) y su `interval_frames` estuvo en 12; al volver
+a RT-DETR (pesos MEJORADO) regreso a 5.
 """
 
 from __future__ import annotations
