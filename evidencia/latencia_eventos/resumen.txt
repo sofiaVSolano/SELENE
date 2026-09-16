@@ -1,0 +1,9 @@
+base: /app/data/selene.db | desde: 2026-08-02 (UTC)
+eventos en el periodo: 120 | primero: 2026-08-04 20:03:40.849954 | ultimo: 2026-09-10 22:20:11.047460
+  alerta_ocupacion: 15 eventos, 0 con origen
+  apagado: 50 eventos, 50 con origen
+  encendido: 55 eventos, 55 con origen
+== latencia (s) ==
+TODOS: n=105 media=0.064 mediana=0.037 p95=0.205 min=0.009 max=0.774
+apagado: n=50 media=0.078 mediana=0.039 p95=0.206 min=0.016 max=0.774
+encendido: n=55 media=0.052 mediana=0.030 p95=0.188 min=0.009 max=0.189
