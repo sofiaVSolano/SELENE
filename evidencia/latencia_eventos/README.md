@@ -1,7 +1,7 @@
-# Latencia de generación de eventos (producción)
+# Latencia de registro de eventos (producción)
 
-Evidencia de la Sección 4.1 de la tesis y del requisito RNF-0X
-(p95 de la latencia de generación de eventos < 5 s).
+Evidencia de la Sección 4.1 de la tesis y del requisito RNF-09
+(p95 de la latencia de registro de eventos < 5 s).
 
 ## Archivos
 
@@ -29,15 +29,21 @@ del CSV con numpy y coinciden.
 - **Fuente:** base SQLite de producción (`/app/data/selene.db`, contenedor
   `selene-backend-1`), abierta en modo solo lectura. Extracción del 2026-09-16.
 - **Métrica:** latencia = `eventos.fecha_hora` − `eventos.fecha_hora_origen`.
+- **Tramo que cubre:** `fecha_hora_origen` es el instante en que se guarda la
+  detección (`routers/deteccion.py`), que ocurre después de recibir la imagen,
+  decodificarla y ejecutar los modelos de visión. La métrica mide solo el
+  trabajo del backend entre guardar la detección y guardar el evento que esta
+  origina. No incluye el envío de la imagen, la inferencia ni el intervalo
+  entre capturas; no es una latencia de extremo a extremo.
 - **Periodo:** eventos con `fecha_hora >= 2026-08-02` (UTC); en la práctica
   van del 2026-08-04 20:03 al 2026-09-10 22:20 UTC.
 - **Exclusión de datos de desarrollo:** la base de producción se inicializó
   copiando la de desarrollo. Los 12 eventos heredados terminan el
   2026-08-01 22:45 UTC, así que el corte del 2026-08-02 los deja fuera.
 - **Eventos no medibles:** de los 120 eventos del periodo, las 15
-  `alerta_ocupacion` no guardan `fecha_hora_origen`. Se emiten a propósito tras
-  10 s sin ocupación, así que su tiempo total es esa espera más la latencia
-  medida aquí.
+  `alerta_ocupacion` no guardan `fecha_hora_origen`: las emite el frontend
+  (`POST /api/alertas`) al cumplirse la espera de 10 s sin ocupación, y quedan
+  fuera de esta medición.
 
 ## Reproducir
 

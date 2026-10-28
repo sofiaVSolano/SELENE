@@ -100,14 +100,26 @@ export default function Visor({
               última inferencia se quedaban dibujadas sobre la pantalla de
               "iniciar monitoreo", porque `captura` sigue apuntando a esa
               última inferencia y nada más las estaba ocultando. */}
+          {/* Las cajas son una foto de la última inferencia, no un tracking:
+              si alguien se mueve, se quedan donde estaba. Por eso se apagan
+              al envejecer, en vez de seguir afirmando una posición vieja
+              encima del vídeo en vivo. */}
           {hayFuente && !revisandoHistorial && captura && (
-            <Cajas
-              ancho={captura.ancho}
-              alto={captura.alto}
-              personas={captura.analisis.personas}
-              elementos={captura.analisis.elementos_iluminacion}
-              claveCaptura={captura.id}
-            />
+            <motion.div
+              key={captura.id}
+              className="pointer-events-none absolute inset-0"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0.3 }}
+              transition={{ delay: 1.4, duration: 1.2, ease: "easeOut" }}
+            >
+              <Cajas
+                ancho={captura.ancho}
+                alto={captura.alto}
+                personas={captura.analisis.personas}
+                elementos={captura.analisis.elementos_iluminacion}
+                claveCaptura={captura.id}
+              />
+            </motion.div>
           )}
 
           {/* Captura congelada: sólo al revisar historial */}

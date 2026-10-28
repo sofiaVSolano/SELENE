@@ -410,4 +410,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* El barrido es el único aviso de que hay una inferencia en curso. Con la
+     regla de arriba se quedaba clavado arriba del encuadre y parecía que la
+     app se había colgado (Windows activa este modo al apagar "Efectos de
+     animación"). Se conserva, más lento. */
+  .barrido::before {
+    animation-duration: 3.2s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

@@ -1,10 +1,12 @@
-"""Latencia de generacion de eventos: exporta los eventos medibles a CSV e
-imprime n, media, mediana y p95 (evidencia de RNF-0X, Seccion 4.1 de la tesis).
+"""Latencia de registro de eventos: exporta los eventos medibles a CSV e
+imprime n, media, mediana y p95 (evidencia de RNF-09, Seccion 4.1 de la tesis).
 
 La latencia de un evento es `eventos.fecha_hora` (instante en que se registro)
-menos `eventos.fecha_hora_origen` (marca de tiempo de la deteccion que lo
-origino). Solo `encendido`/`apagado` guardan esa marca; `alerta_ocupacion` se
-emite tras una espera intencional sin ocupacion y no la almacena.
+menos `eventos.fecha_hora_origen` (instante en que se guardo la deteccion que
+lo origino, ya con la inferencia hecha: ver `routers/deteccion.py`). Mide solo
+el tramo del backend entre ambos registros, no el envio de la imagen ni la
+inferencia. Solo `encendido`/`apagado` guardan esa marca; `alerta_ocupacion`
+la emite el frontend por `/api/alertas` y no la almacena.
 
 La base de produccion se inicializo copiando la de desarrollo: los eventos
 heredados terminan el 2026-08-01 y los propios de produccion empiezan el
